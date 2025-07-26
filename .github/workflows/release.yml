@@ -19,8 +19,7 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      release_id: ${{ steps.create_release.outputs.id }}
+      tag: ${{ steps.get_tag.outputs.tag }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -36,63 +35,58 @@ jobs:
 
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.get_tag.outputs.tag }}
-        release_name: Release ${{ steps.get_tag.outputs.tag }}
-        body: |
-          ## 🚀 tsh-rs ${{ steps.get_tag.outputs.tag }}
+      run: |
+        gh release create ${{ steps.get_tag.outputs.tag }} \
+          --title "Release ${{ steps.get_tag.outputs.tag }}" \
+          --notes "$(cat <<'EOF'
+        ## 🚀 tsh-rs ${{ steps.get_tag.outputs.tag }}
 
-          Tiny Shell (tsh) - Secure remote shell access tool written in Rust
+        Tiny Shell (tsh) - Secure remote shell access tool with Noise Protocol encryption
 
-          ### 📦 Downloads
+        ### 📦 Downloads
 
-          Choose the appropriate binary for your platform:
+        Choose the appropriate binary for your platform:
 
-          | Platform | Architecture | Download |
-          |----------|-------------|----------|
-          | Linux | x86_64 | [tsh-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-linux-x64.tar.gz) |
-          | Linux | ARM64 | [tsh-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-linux-arm64.tar.gz) |
-          | Windows | x86_64 | [tsh-windows-x64.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-windows-x64.zip) |
-          | macOS | x86_64 | [tsh-macos-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-macos-x64.tar.gz) |
-          | macOS | ARM64 | [tsh-macos-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-macos-arm64.tar.gz) |
+        | Platform | Architecture | Download |
+        |----------|-------------|----------|
+        | Linux | x86_64 | [tsh-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-linux-x64.tar.gz) |
+        | Linux | ARM64 | [tsh-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-linux-arm64.tar.gz) |
+        | Windows | x86_64 | [tsh-windows-x64.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-windows-x64.zip) |
+        | macOS | x86_64 | [tsh-macos-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-macos-x64.tar.gz) |
+        | macOS | ARM64 | [tsh-macos-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-macos-arm64.tar.gz) |
 
-          ### 🔒 Security Notice
+        ### 🔒 Security Features
 
-          **This is a legitimate remote administration tool.**
+        - **Noise Protocol Framework**: Modern cryptographic protocol with proven security
+        - **ChaCha20-Poly1305 AEAD**: Authenticated encryption with associated data
+        - **X25519 Key Exchange**: Elliptic curve Diffie-Hellman key agreement
+        - **Perfect Forward Secrecy**: Each session uses ephemeral keys
 
-          ⚠️ **Important:** Some antivirus software may flag this as potentially unwanted software due to its remote access capabilities. This is a false positive. The tool is designed for:
+        ### 🛠️ Installation
 
-          - System administration
-          - Remote troubleshooting
-          - Authorized security testing
-          - Development environment management
+        1. Download the appropriate binary for your platform
+        2. Extract the archive
+        3. Make the binaries executable (Unix/Linux/macOS): `chmod +x tsh tshd`
+        4. Run the server: `./tshd -p 1234`
+        5. Connect with client: `./tsh -p 1234 server_ip`
 
-          **Only use on systems you own or have explicit permission to access.**
+        ### 🆕 What's New
 
-          ### 🛠️ Installation
+        - Modern Noise Protocol encryption (replaces AES-128-CBC)
+        - Quantum-resistant key exchange
+        - Memory-safe implementation in Rust
+        - Enhanced error handling and logging
 
-          1. Download the appropriate binary for your platform
-          2. Extract the archive
-          3. Make the binaries executable (Unix/Linux/macOS): `chmod +x tsh tshd`
-          4. Run the server: `./tshd -s your_secret -p 8080`
-          5. Connect with client: `./tsh -s your_secret -p 8080 server_ip`
+        ### 📋 Checksums
 
-          ### 🆕 What's New
+        SHA256 checksums will be provided in a separate file: `checksums.txt`
 
-          - Memory-safe implementation in Rust
-          - Improved error handling and logging
-          - Better cross-platform support
-          - Enhanced security with modern crypto libraries
-
-          ### 📋 Checksums
-
-          SHA256 checksums will be provided in a separate file: `checksums.txt`
-
-        draft: false
-        prerelease: false
+        **Only use on systems you own or have explicit permission to access.**
+        EOF
+        )" \
+          --latest
 
   build-and-upload:
     name: Build and Upload
@@ -277,19 +271,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Download all assets
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         mkdir -p downloads
         cd downloads
 
-        # Get release info
-        RELEASE_ID="${{ needs.create-release.outputs.release_id }}"
-
-        # Download all release assets
-        curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-             -H "Accept: application/vnd.github.v3+json" \
-             "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" \
-             | jq -r '.[].browser_download_url' \
-             | xargs -n 1 curl -L -O
+        # Get release assets using gh CLI
+        gh release download ${{ needs.create-release.outputs.tag }} --repo ${{ github.repository }}
 
     - name: Generate global checksums
       run: |
