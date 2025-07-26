@@ -7,9 +7,9 @@ all: linux
 # Build for Linux x64
 .PHONY: linux
 linux:
-	@echo "Building Linux x64 binaries..."
+	@echo "Building Linux x64 binaries (static)..."
 	@mkdir -p build/linux-x64
-	cargo build --release --target x86_64-unknown-linux-gnu
+	RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target x86_64-unknown-linux-gnu
 	cp target/x86_64-unknown-linux-gnu/release/tsh build/linux-x64/
 	cp target/x86_64-unknown-linux-gnu/release/tshd build/linux-x64/
 
@@ -48,7 +48,7 @@ unix:
 	@echo "Building for custom target: $(TARGET)"
 	@if [ -z "$(TARGET)" ]; then echo "Usage: make unix TARGET=<rust-target-triple>"; exit 1; fi
 	@mkdir -p build/$(TARGET)
-	cargo build --release --target $(TARGET)
+	RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target $(TARGET)
 	cp target/$(TARGET)/release/tsh build/$(TARGET)/ 2>/dev/null || cp target/$(TARGET)/release/tsh.exe build/$(TARGET)/ 2>/dev/null || true
 	cp target/$(TARGET)/release/tshd build/$(TARGET)/ 2>/dev/null || cp target/$(TARGET)/release/tshd.exe build/$(TARGET)/ 2>/dev/null || true
 
@@ -137,5 +137,5 @@ help:
 	@echo "Examples:"
 	@echo "  make linux"
 	@echo "  make unix TARGET=aarch64-unknown-linux-gnu"
-	@echo "  make run-client ARGS='-s mysecret -p 8080 192.168.1.100'"
-	@echo "  make run-server ARGS='-s mysecret -p 8080'"
+	@echo "  make run-client ARGS='-p 8080 192.168.1.100'"
+	@echo "  make run-server ARGS='-p 8080'"
