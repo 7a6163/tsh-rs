@@ -1,0 +1,131 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run security scan daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Cache cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-audit-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+      
+    - name: Run security audit
+      run: cargo audit --json > audit-results.json
+      continue-on-error: true
+      
+    - name: Upload audit results
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-audit-results
+        path: audit-results.json
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v3
+      with:
+        config-file: '.github/dependency-review-config.yml'
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: rust
+        config-file: ./.github/codeql/codeql-config.yml
+        
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Build for CodeQL
+      run: cargo build --release
+      
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
+  supply-chain-security:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Install cargo-deny
+      run: cargo install cargo-deny
+      
+    - name: Check licenses and security
+      run: cargo deny check
+      
+  binary-scan:
+    name: Binary Security Scan
+    runs-on: ubuntu-latest
+    needs: []
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Build release binary
+      run: cargo build --release
+      
+    - name: Install checksec
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y checksec
+        
+    - name: Run checksec on binaries
+      run: |
+        echo "=== tsh binary security features ==="
+        checksec --file=target/release/tsh
+        echo ""
+        echo "=== tshd binary security features ==="
+        checksec --file=target/release/tshd
+        
+    - name: Check for hardening flags
+      run: |
+        echo "=== Checking security flags ==="
+        readelf -d target/release/tsh | grep -E "(RUNPATH|RPATH|BIND_NOW|PIE)"
+        readelf -d target/release/tshd | grep -E "(RUNPATH|RPATH|BIND_NOW|PIE)"

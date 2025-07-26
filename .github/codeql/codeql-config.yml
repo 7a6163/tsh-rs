@@ -1,0 +1,27 @@
+# CodeQL Configuration for Rust
+name: "tsh-rs CodeQL Config"
+
+# Disable default queries and use custom query suites
+disable-default-queries: false
+
+# Additional query packs to run
+packs:
+  - codeql/rust-queries
+
+# Custom queries directory
+queries:
+  - name: security-queries
+    uses: security-and-quality
+
+# Path filters
+paths-ignore:
+  - "target/**"
+  - "**/*.md"
+  - "demo.md"
+  - ".github/**"
+  - "Makefile"
+
+paths:
+  - "src/**"
+  - "Cargo.toml"
+  - "Cargo.lock"

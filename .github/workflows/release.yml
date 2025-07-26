@@ -1,0 +1,302 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Get tag name
+      id: get_tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_tag.outputs.tag }}
+        release_name: Release ${{ steps.get_tag.outputs.tag }}
+        body: |
+          ## 🚀 tsh-rs ${{ steps.get_tag.outputs.tag }}
+          
+          Tiny Shell (tsh) - Secure remote shell access tool written in Rust
+          
+          ### 📦 Downloads
+          
+          Choose the appropriate binary for your platform:
+          
+          | Platform | Architecture | Download |
+          |----------|-------------|----------|
+          | Linux | x86_64 | [tsh-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-linux-x64.tar.gz) |
+          | Linux | ARM64 | [tsh-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-linux-arm64.tar.gz) |
+          | Windows | x86_64 | [tsh-windows-x64.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-windows-x64.zip) |
+          | macOS | x86_64 | [tsh-macos-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-macos-x64.tar.gz) |
+          | macOS | ARM64 | [tsh-macos-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag }}/tsh-macos-arm64.tar.gz) |
+          
+          ### 🔒 Security Notice
+          
+          **This is a legitimate remote administration tool.**
+          
+          ⚠️ **Important:** Some antivirus software may flag this as potentially unwanted software due to its remote access capabilities. This is a false positive. The tool is designed for:
+          
+          - System administration
+          - Remote troubleshooting
+          - Authorized security testing
+          - Development environment management
+          
+          **Only use on systems you own or have explicit permission to access.**
+          
+          ### 🛠️ Installation
+          
+          1. Download the appropriate binary for your platform
+          2. Extract the archive
+          3. Make the binaries executable (Unix/Linux/macOS): `chmod +x tsh tshd`
+          4. Run the server: `./tshd -s your_secret -p 8080`
+          5. Connect with client: `./tsh -s your_secret -p 8080 server_ip`
+          
+          ### 🆕 What's New
+          
+          - Memory-safe implementation in Rust
+          - Improved error handling and logging
+          - Better cross-platform support
+          - Enhanced security with modern crypto libraries
+          
+          ### 📋 Checksums
+          
+          SHA256 checksums will be provided in a separate file: `checksums.txt`
+          
+        draft: false
+        prerelease: false
+
+  build-and-upload:
+    name: Build and Upload
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: tsh-linux-x64
+            asset_name: tsh-linux-x64.tar.gz
+            asset_content_type: application/gzip
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: tsh-linux-arm64
+            asset_name: tsh-linux-arm64.tar.gz
+            asset_content_type: application/gzip
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: tsh-windows-x64
+            asset_name: tsh-windows-x64.zip
+            asset_content_type: application/zip
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: tsh-macos-x64
+            asset_name: tsh-macos-x64.tar.gz
+            asset_content_type: application/gzip
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: tsh-macos-arm64
+            asset_name: tsh-macos-arm64.tar.gz
+            asset_content_type: application/gzip
+            
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+        
+    - name: Cache cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-${{ matrix.target }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Install cross-compilation tools (Linux ARM64)
+      if: matrix.target == 'aarch64-unknown-linux-gnu'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu
+        
+    - name: Build release binaries
+      run: cargo build --release --target ${{ matrix.target }}
+      env:
+        CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        
+    - name: Create release directory
+      run: mkdir -p release/${{ matrix.artifact_name }}
+      
+    - name: Copy binaries and docs (Unix)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cp target/${{ matrix.target }}/release/tsh release/${{ matrix.artifact_name }}/
+        cp target/${{ matrix.target }}/release/tshd release/${{ matrix.artifact_name }}/
+        cp README.md release/${{ matrix.artifact_name }}/
+        cp demo.md release/${{ matrix.artifact_name }}/
+        cp Makefile release/${{ matrix.artifact_name }}/
+        
+    - name: Copy binaries and docs (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cp target/${{ matrix.target }}/release/tsh.exe release/${{ matrix.artifact_name }}/
+        cp target/${{ matrix.target }}/release/tshd.exe release/${{ matrix.artifact_name }}/
+        cp README.md release/${{ matrix.artifact_name }}/
+        cp demo.md release/${{ matrix.artifact_name }}/
+        cp Makefile release/${{ matrix.artifact_name }}/
+        
+    - name: Create installation script (Unix)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cat > release/${{ matrix.artifact_name }}/install.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "🚀 Installing tsh-rs..."
+        
+        # Make binaries executable
+        chmod +x tsh tshd
+        
+        # Create installation directory
+        INSTALL_DIR="$HOME/.local/bin"
+        mkdir -p "$INSTALL_DIR"
+        
+        # Copy binaries
+        cp tsh "$INSTALL_DIR/"
+        cp tshd "$INSTALL_DIR/"
+        
+        echo "✅ Installation complete!"
+        echo "📍 Binaries installed to: $INSTALL_DIR"
+        echo "🔧 Make sure $INSTALL_DIR is in your PATH"
+        echo ""
+        echo "Usage:"
+        echo "  Server: tshd -s your_secret -p 8080"
+        echo "  Client: tsh -s your_secret -p 8080 server_ip"
+        EOF
+        chmod +x release/${{ matrix.artifact_name }}/install.sh
+        
+    - name: Create installation script (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cat > release/${{ matrix.artifact_name }}/install.bat << 'EOF'
+        @echo off
+        echo 🚀 Installing tsh-rs...
+        
+        set INSTALL_DIR=%USERPROFILE%\AppData\Local\tsh-rs
+        if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+        
+        copy tsh.exe "%INSTALL_DIR%\"
+        copy tshd.exe "%INSTALL_DIR%\"
+        
+        echo ✅ Installation complete!
+        echo 📍 Binaries installed to: %INSTALL_DIR%
+        echo 🔧 Add %INSTALL_DIR% to your PATH environment variable
+        echo.
+        echo Usage:
+        echo   Server: tshd.exe -s your_secret -p 8080
+        echo   Client: tsh.exe -s your_secret -p 8080 server_ip
+        pause
+        EOF
+        
+    - name: Generate checksums (Unix)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd release/${{ matrix.artifact_name }}
+        sha256sum * > checksums.txt
+        
+    - name: Generate checksums (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cd release/${{ matrix.artifact_name }}
+        certutil -hashfile tsh.exe SHA256 > checksums.txt
+        certutil -hashfile tshd.exe SHA256 >> checksums.txt
+        
+    - name: Create archive (Unix)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd release
+        tar -czf ${{ matrix.asset_name }} ${{ matrix.artifact_name }}/
+        
+    - name: Create archive (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cd release
+        7z a ${{ matrix.asset_name }} ${{ matrix.artifact_name }}/
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: release/${{ matrix.asset_name }}
+        asset_name: ${{ matrix.asset_name }}
+        asset_content_type: ${{ matrix.asset_content_type }}
+
+  generate-checksums:
+    name: Generate Global Checksums
+    needs: [create-release, build-and-upload]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all assets
+      run: |
+        mkdir -p downloads
+        cd downloads
+        
+        # Get release info
+        RELEASE_ID="${{ needs.create-release.outputs.release_id }}"
+        
+        # Download all release assets
+        curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+             -H "Accept: application/vnd.github.v3+json" \
+             "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" \
+             | jq -r '.[].browser_download_url' \
+             | xargs -n 1 curl -L -O
+             
+    - name: Generate global checksums
+      run: |
+        cd downloads
+        sha256sum * > checksums.txt
+        
+    - name: Upload checksums
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: downloads/checksums.txt
+        asset_name: checksums.txt
+        asset_content_type: text/plain
