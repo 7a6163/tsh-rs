@@ -2,8 +2,10 @@ use clap::{Arg, Command};
 use log::{error, info, warn};
 use std::process;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::signal;
 use tokio::time::{sleep, Duration};
+
+#[cfg(unix)]
+use tokio::signal;
 
 // Import our library modules
 use tsh_rs::{
@@ -106,6 +108,7 @@ async fn run_in_background() -> TshResult<()> {
     Ok(())
 }
 
+#[cfg(unix)]
 async fn setup_signal_handlers() {
     tokio::spawn(async {
         let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
@@ -121,6 +124,21 @@ async fn setup_signal_handlers() {
             _ = sigint.recv() => {
                 info!("Received SIGINT, shutting down");
                 process::exit(0);
+            }
+        }
+    });
+}
+
+#[cfg(windows)]
+async fn setup_signal_handlers() {
+    tokio::spawn(async {
+        match tokio::signal::ctrl_c().await {
+            Ok(_) => {
+                info!("Received Ctrl+C, shutting down");
+                process::exit(0);
+            }
+            Err(e) => {
+                error!("Failed to listen for Ctrl+C: {}", e);
             }
         }
     });
