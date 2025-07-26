@@ -355,9 +355,9 @@ async fn handle_file_upload(layer: &mut PktEncLayer) -> TshResult<()> {
     use tokio::fs::File;
 
     let dest_path = Path::new(&dest_dir).join("uploaded_file");
-    let mut file = File::create(&dest_path).await.map_err(|e| {
-        TshError::file_transfer(format!("Failed to create destination file: {e}"))
-    })?;
+    let mut file = File::create(&dest_path)
+        .await
+        .map_err(|e| TshError::file_transfer(format!("Failed to create destination file: {e}")))?;
 
     // Receive file content
     let mut buffer = vec![0u8; BUFSIZE];

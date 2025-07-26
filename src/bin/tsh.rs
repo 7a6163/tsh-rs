@@ -164,8 +164,7 @@ async fn run_interactive_shell(layer: &mut PktEncLayer) -> TshResult<()> {
     let result = shell_loop(layer).await;
 
     // Cleanup
-    disable_raw_mode()
-        .map_err(|e| TshError::system(format!("Failed to disable raw mode: {e}")))?;
+    disable_raw_mode().map_err(|e| TshError::system(format!("Failed to disable raw mode: {e}")))?;
     execute!(stdout(), LeaveAlternateScreen)
         .map_err(|e| TshError::system(format!("Failed to leave alternate screen: {e}")))?;
 
