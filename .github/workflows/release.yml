@@ -229,11 +229,17 @@ jobs:
         pause
         EOF
 
-    - name: Generate checksums (Unix)
-      if: matrix.os != 'windows-latest'
+    - name: Generate checksums (Linux)
+      if: matrix.os == 'ubuntu-latest'
       run: |
         cd release/${{ matrix.artifact_name }}
         sha256sum * > checksums.txt
+
+    - name: Generate checksums (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        cd release/${{ matrix.artifact_name }}
+        shasum -a 256 * > checksums.txt
 
     - name: Generate checksums (Windows)
       if: matrix.os == 'windows-latest'
