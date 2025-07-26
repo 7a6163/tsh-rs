@@ -12,16 +12,24 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 // Import our library modules
-use tsh_rs::{constants::*, error::*, noise::NoiseLayer};
+use tsh_rs::{constants::*, error::*, pel::PktEncLayer};
 
 #[tokio::main]
 async fn main() -> TshResult<()> {
     env_logger::init();
 
     let matches = Command::new("tsh")
-        .version("1.0.0")
-        .author("Zac")
-        .about("Tiny Shell - Remote shell access client (Noise Protocol)")
+        .version("0.1.0")
+        .author("Your Name <your.email@example.com>")
+        .about("Tiny Shell - Remote shell access client")
+        .arg(
+            Arg::new("secret")
+                .short('s')
+                .long("secret")
+                .value_name("SECRET")
+                .help("Authentication secret")
+                .default_value(DEFAULT_SECRET),
+        )
         .arg(
             Arg::new("port")
                 .short('p')
@@ -32,20 +40,21 @@ async fn main() -> TshResult<()> {
         )
         .arg(
             Arg::new("target")
-                .value_name("HOST")
-                .help("Target host to connect to, or 'cb' for connect-back mode")
+                .value_name("TARGET")
+                .help("Target hostname or 'cb' for connect-back")
                 .required(true)
                 .index(1),
         )
         .arg(
             Arg::new("action")
                 .value_name("ACTION")
-                .help("Action to perform: get:remote_file:local_dir or put:local_file:remote_dir")
+                .help("Action: get <source> <dest> | put <source> <dest> | [command]")
                 .num_args(0..)
                 .index(2),
         )
         .get_matches();
 
+    let secret = matches.get_one::<String>("secret").unwrap().clone();
     let port: u16 = matches
         .get_one::<String>("port")
         .unwrap()
@@ -60,13 +69,13 @@ async fn main() -> TshResult<()> {
         .collect();
 
     if target == "cb" {
-        handle_connect_back(port, actions).await
+        handle_connect_back(secret, port, actions).await
     } else {
-        handle_direct_connection(target, port, actions).await
+        handle_direct_connection(target, secret, port, actions).await
     }
 }
 
-async fn handle_connect_back(port: u16, actions: Vec<&str>) -> TshResult<()> {
+async fn handle_connect_back(secret: String, port: u16, actions: Vec<&str>) -> TshResult<()> {
     info!("Starting connect-back mode on port {port}");
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
@@ -80,24 +89,24 @@ async fn handle_connect_back(port: u16, actions: Vec<&str>) -> TshResult<()> {
         .await
         .map_err(|e| TshError::network(format!("Failed to accept connection: {e}")))?;
 
-    // For connect-back, we act as responder in Noise handshake
-    use snow::Builder;
-    let builder = Builder::new("Noise_XX_25519_ChaChaPoly_BLAKE2s".parse().unwrap());
-    let keypair = builder.generate_keypair().unwrap();
-    let handshake = builder
-        .local_private_key(&keypair.private)
-        .build_responder()
-        .unwrap();
+    let mut layer = PktEncLayer::new(stream, secret);
+    layer.handshake(false).await?;
 
-    // Perform handshake
-    let mut layer = tsh_rs::noise::perform_handshake_responder(stream, handshake).await?;
+    // Authentication check (simplified)
+    print!("Password: ");
+    std::io::stdout().flush().unwrap();
 
     println!("connected.");
 
     execute_action(&mut layer, actions).await
 }
 
-async fn handle_direct_connection(target: &str, port: u16, actions: Vec<&str>) -> TshResult<()> {
+async fn handle_direct_connection(
+    target: &str,
+    secret: String,
+    port: u16,
+    actions: Vec<&str>,
+) -> TshResult<()> {
     let address = if target.contains(':') {
         target.to_string()
     } else {
@@ -106,35 +115,43 @@ async fn handle_direct_connection(target: &str, port: u16, actions: Vec<&str>) -
 
     info!("Connecting to {address}");
 
-    let mut layer = NoiseLayer::connect(&address).await?;
+    let mut layer = PktEncLayer::connect(&address, secret, false).await?;
 
-    println!("connected.");
+    // Authentication check (simplified)
+    print!("Password:");
+    std::io::stdout().flush().unwrap();
 
     execute_action(&mut layer, actions).await
 }
 
-async fn execute_action(layer: &mut NoiseLayer, actions: Vec<&str>) -> TshResult<()> {
+async fn execute_action(layer: &mut PktEncLayer, actions: Vec<&str>) -> TshResult<()> {
     if actions.is_empty() {
         // Interactive shell mode
         run_interactive_shell(layer).await
     } else {
-        // Parse action
-        let action_str = actions.join(" ");
-        let parts: Vec<&str> = action_str.split(':').collect();
-
-        match parts.first().copied() {
-            Some("get") if parts.len() == 3 => download_file(layer, parts[1], parts[2]).await,
-            Some("put") if parts.len() == 3 => upload_file(layer, parts[1], parts[2]).await,
-            Some(cmd) => {
-                // Command execution mode
-                execute_command(layer, cmd).await
+        match actions[0] {
+            "get" => {
+                if actions.len() != 3 {
+                    return Err(TshError::system("Usage: get <source-file> <dest-dir>"));
+                }
+                download_file(layer, actions[1], actions[2]).await
             }
-            None => Err(TshError::system("Invalid action format")),
+            "put" => {
+                if actions.len() != 3 {
+                    return Err(TshError::system("Usage: put <source-file> <dest-dir>"));
+                }
+                upload_file(layer, actions[1], actions[2]).await
+            }
+            _ => {
+                // Execute command
+                let command = actions.join(" ");
+                execute_command(layer, &command).await
+            }
         }
     }
 }
 
-async fn run_interactive_shell(layer: &mut NoiseLayer) -> TshResult<()> {
+async fn run_interactive_shell(layer: &mut PktEncLayer) -> TshResult<()> {
     info!("Starting interactive shell");
 
     // Send shell mode
@@ -154,62 +171,54 @@ async fn run_interactive_shell(layer: &mut NoiseLayer) -> TshResult<()> {
     result
 }
 
-async fn shell_loop(layer: &mut NoiseLayer) -> TshResult<()> {
+async fn shell_loop(layer: &mut PktEncLayer) -> TshResult<()> {
     let mut buffer = vec![0u8; BUFSIZE];
 
+    // Create a simple keyboard handler that doesn't conflict with layer usage
     loop {
-        // Check for keyboard input
-        if event::poll(std::time::Duration::from_millis(10)).unwrap() {
-            if let Event::Key(key_event) = event::read().unwrap() {
+        // Check for keyboard input without async block
+        if event::poll(std::time::Duration::from_millis(10)).unwrap_or(false) {
+            if let Ok(Event::Key(key_event)) = event::read() {
                 match key_event.code {
                     KeyCode::Char(c) => {
-                        let byte = c as u8;
-                        layer.write(&[byte]).await?;
+                        let _ = layer.write(&[c as u8]).await;
                     }
                     KeyCode::Enter => {
-                        layer.write(b"\r").await?;
+                        let _ = layer.write(b"\r\n").await;
                     }
                     KeyCode::Backspace => {
-                        layer.write(&[0x7f]).await?;
+                        let _ = layer.write(&[8]).await;
                     }
                     KeyCode::Esc => {
-                        layer.write(&[0x1b]).await?;
-                    }
-                    KeyCode::Tab => {
-                        layer.write(b"\t").await?;
-                    }
-                    KeyCode::Up => {
-                        layer.write(b"\x1b[A").await?;
-                    }
-                    KeyCode::Down => {
-                        layer.write(b"\x1b[B").await?;
-                    }
-                    KeyCode::Right => {
-                        layer.write(b"\x1b[C").await?;
-                    }
-                    KeyCode::Left => {
-                        layer.write(b"\x1b[D").await?;
+                        return Ok(());
                     }
                     _ => {}
                 }
             }
         }
 
-        // Check for data from server
-        match layer.read(&mut buffer).await {
-            Ok(n) => {
-                if n > 0 {
-                    print!("{}", String::from_utf8_lossy(&buffer[..n]));
-                    stdout().flush().unwrap();
+        // Try to read from remote with timeout
+        match tokio::time::timeout(
+            std::time::Duration::from_millis(10),
+            layer.read(&mut buffer),
+        )
+        .await
+        {
+            Ok(Ok(n)) => {
+                if n == 0 {
+                    break;
                 }
+                print!("{}", String::from_utf8_lossy(&buffer[..n]));
+                std::io::stdout().flush().unwrap();
             }
-            Err(TshError::ConnectionClosed) => {
-                info!("Connection closed by server");
-                break;
-            }
-            Err(e) => {
+            Ok(Err(TshError::ConnectionClosed)) => break,
+            Ok(Err(e)) => {
                 error!("Read error: {e}");
                 break;
+            }
+            Err(_) => {
+                // Timeout - continue loop
+                continue;
             }
         }
     }
@@ -217,27 +226,22 @@ async fn shell_loop(layer: &mut NoiseLayer) -> TshResult<()> {
     Ok(())
 }
 
-async fn download_file(layer: &mut NoiseLayer, source: &str, dest_dir: &str) -> TshResult<()> {
+async fn download_file(layer: &mut PktEncLayer, source: &str, dest_dir: &str) -> TshResult<()> {
     info!("Downloading {source} to {dest_dir}");
 
-    // Send download mode and filename
+    // Send get command
     layer.write(&[OperationMode::GetFile as u8]).await?;
     layer.write(source.as_bytes()).await?;
     layer.write(b"\0").await?;
 
     // Read file size
-    let mut size_buf = [0u8; 8];
+    let mut size_buf = vec![0u8; 8];
     layer.read(&mut size_buf).await?;
-    let file_size = u64::from_le_bytes(size_buf);
-
-    if file_size == 0 {
-        return Err(TshError::file_transfer("Remote file not found or empty"));
-    }
+    let file_size = u64::from_le_bytes(size_buf.try_into().unwrap());
 
     // Create destination file
-    let file_name = Path::new(source).file_name().unwrap_or_default();
-    let dest_path = Path::new(dest_dir).join(file_name);
-    let mut file = File::create(&dest_path)
+    let dest_path = Path::new(dest_dir).join(Path::new(source).file_name().unwrap());
+    let mut dest_file = File::create(&dest_path)
         .await
         .map_err(|e| TshError::file_transfer(format!("Failed to create file: {e}")))?;
 
@@ -245,48 +249,52 @@ async fn download_file(layer: &mut NoiseLayer, source: &str, dest_dir: &str) -> 
     let pb = ProgressBar::new(file_size);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("{spinner:.green} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-            .unwrap()
-            .progress_chars("#>-"),
+            .template("{bar:40.cyan/blue} {pos}/{len} {percent}% {eta}")
+            .unwrap(),
     );
 
-    // Download file
+    // Download file with progress
+    let mut total_read = 0u64;
     let mut buffer = vec![0u8; BUFSIZE];
-    let mut total_received = 0u64;
 
-    while total_received < file_size {
-        let n = layer.read(&mut buffer).await?;
+    while total_read < file_size {
+        let to_read = std::cmp::min(buffer.len(), (file_size - total_read) as usize);
+        let n = layer.read(&mut buffer[..to_read]).await?;
+
         if n == 0 {
             break;
         }
 
-        file.write_all(&buffer[..n])
+        dest_file
+            .write_all(&buffer[..n])
             .await
-            .map_err(|e| TshError::file_transfer(format!("Failed to write file: {e}")))?;
+            .map_err(|e| TshError::file_transfer(format!("Failed to write to file: {e}")))?;
 
-        total_received += n as u64;
-        pb.set_position(total_received);
+        total_read += n as u64;
+        pb.set_position(total_read);
     }
 
-    pb.finish_with_message("Download completed");
+    pb.finish();
+    println!("\nDone.");
+
     Ok(())
 }
 
-async fn upload_file(layer: &mut NoiseLayer, source: &str, dest_dir: &str) -> TshResult<()> {
+async fn upload_file(layer: &mut PktEncLayer, source: &str, dest_dir: &str) -> TshResult<()> {
     info!("Uploading {source} to {dest_dir}");
 
     // Open source file
-    let mut file = File::open(source)
+    let mut source_file = File::open(source)
         .await
         .map_err(|e| TshError::file_transfer(format!("Failed to open file: {e}")))?;
 
-    let file_size = file
+    let file_size = source_file
         .metadata()
         .await
         .map_err(|e| TshError::file_transfer(format!("Failed to get file metadata: {e}")))?
         .len();
 
-    // Send upload mode and destination
+    // Send put command
     layer.write(&[OperationMode::PutFile as u8]).await?;
     layer.write(dest_dir.as_bytes()).await?;
     layer.write(b"\0").await?;
@@ -298,17 +306,16 @@ async fn upload_file(layer: &mut NoiseLayer, source: &str, dest_dir: &str) -> Ts
     let pb = ProgressBar::new(file_size);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("{spinner:.green} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-            .unwrap()
-            .progress_chars("#>-"),
+            .template("{bar:40.cyan/blue} {pos}/{len} {percent}% {eta}")
+            .unwrap(),
     );
 
-    // Upload file
-    let mut buffer = vec![0u8; BUFSIZE];
+    // Upload file with progress
     let mut total_sent = 0u64;
+    let mut buffer = vec![0u8; BUFSIZE];
 
-    loop {
-        let n = file
+    while total_sent < file_size {
+        let n = source_file
             .read(&mut buffer)
             .await
             .map_err(|e| TshError::file_transfer(format!("Failed to read from file: {e}")))?;
@@ -322,21 +329,20 @@ async fn upload_file(layer: &mut NoiseLayer, source: &str, dest_dir: &str) -> Ts
         pb.set_position(total_sent);
     }
 
-    pb.finish_with_message("Upload completed");
+    pb.finish();
+    println!("\nDone.");
+
     Ok(())
 }
 
-async fn execute_command(layer: &mut NoiseLayer, command: &str) -> TshResult<()> {
+async fn execute_command(layer: &mut PktEncLayer, command: &str) -> TshResult<()> {
     info!("Executing command: {command}");
-
-    // Send command mode
-    layer.write(&[OperationMode::RunShell as u8]).await?;
 
     // Send command
     layer.write(command.as_bytes()).await?;
-    layer.write(b"\n").await?;
+    layer.write(b"\0").await?;
 
-    // Read output
+    // Read and display output
     let mut buffer = vec![0u8; BUFSIZE];
     loop {
         match layer.read(&mut buffer).await {
@@ -345,7 +351,6 @@ async fn execute_command(layer: &mut NoiseLayer, command: &str) -> TshResult<()>
                     break;
                 }
                 print!("{}", String::from_utf8_lossy(&buffer[..n]));
-                stdout().flush().unwrap();
             }
             Err(TshError::ConnectionClosed) => break,
             Err(e) => return Err(e),

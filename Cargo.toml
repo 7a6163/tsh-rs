@@ -1,9 +1,9 @@
 [package]
 name = "tsh-rs"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
-description = "Tiny Shell - Remote shell access tool written in Rust"
+authors = ["Zac"]
+description = "Tiny Shell - Secure remote shell access tool with Noise Protocol encryption"
 license = "MIT"
 
 [[bin]]
@@ -29,6 +29,8 @@ sha2 = "0.10"
 hmac = "0.12"
 aes = "0.8"
 cbc = { version = "0.1", features = ["alloc"] }
+snow = "0.9"
+base64 = "0.22"
 indicatif = "0.17"
 crossterm = "0.27"
 portable-pty = "0.8"

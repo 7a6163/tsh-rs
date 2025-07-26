@@ -4,7 +4,7 @@ A Rust implementation of Tiny Shell (tsh) - a remote shell access tool for secur
 
 ## Features
 
-- **Secure Communication**: AES-CBC encryption with HMAC authentication
+- **Secure Communication**: Noise Protocol with ChaCha20-Poly1305 AEAD encryption
 - **Cross-platform**: Supports Linux, Windows, and macOS
 - **Multiple Operation Modes**:
   - Interactive shell access
@@ -67,51 +67,51 @@ See `make help` for all available commands.
 
 ```bash
 # Listen mode - wait for connections on port 1234
-./tshd -s mysecret -p 1234
+./tshd -p 1234
 
 # Connect-back mode - connect to client every 5 seconds
-./tshd -s mysecret -c 192.168.1.100 -p 1234 -d 5
+./tshd -c 192.168.1.100 -p 1234 -d 5
 ```
 
 ### Client (tsh)
 
 ```bash
 # Interactive shell
-./tsh -s mysecret -p 1234 192.168.1.100
+./tsh -p 1234 192.168.1.100
 
 # Connect-back mode (wait for server)
-./tsh -s mysecret -p 1234 cb
+./tsh -p 1234 cb
 
 # Download file
-./tsh -s mysecret 192.168.1.100 get /remote/file.txt ./local/
+./tsh 192.168.1.100 get:/remote/file.txt:./local/
 
 # Upload file  
-./tsh -s mysecret 192.168.1.100 put ./local/file.txt /remote/
+./tsh 192.168.1.100 put:./local/file.txt:/remote/
 
 # Execute command
-./tsh -s mysecret 192.168.1.100 "ls -la"
+./tsh 192.168.1.100 "ls -la"
 ```
 
 ## Command Line Options
 
 ### tsh (Client)
-- `-s, --secret <SECRET>` - Authentication secret (default: "1234")
 - `-p, --port <PORT>` - Port number (default: 1234)
-- `<TARGET>` - Target hostname or "cb" for connect-back mode
-- `[ACTION]` - Action to perform (get/put/command)
+- `<HOST>` - Target hostname or "cb" for connect-back mode
+- `[ACTION]` - Action to perform (get:remote:local, put:local:remote, or command)
 
 ### tshd (Server)
-- `-s, --secret <SECRET>` - Authentication secret (default: "1234")  
 - `-p, --port <PORT>` - Port number (default: 1234)
 - `-c, --connect-back <HOST>` - Connect back to host (client mode)
 - `-d, --delay <SECONDS>` - Connect back delay in seconds (default: 5)
 
 ## Security Features
 
-- **AES-CBC Encryption**: All communication is encrypted
-- **HMAC Authentication**: Message integrity verification
-- **Challenge-Response**: Mutual authentication between client/server
-- **Secure Random IVs**: Cryptographically secure initialization vectors
+- **Noise Protocol Framework**: Modern cryptographic protocol with proven security
+- **ChaCha20-Poly1305 AEAD**: Authenticated encryption with associated data
+- **X25519 Key Exchange**: Elliptic curve Diffie-Hellman key agreement
+- **BLAKE2s Hashing**: Fast and secure cryptographic hash function
+- **Perfect Forward Secrecy**: Each session uses ephemeral keys
+- **Quantum Resistance**: X25519 provides resistance to quantum attacks on key exchange
 
 ## Cross-Platform Support
 
@@ -138,32 +138,56 @@ make fmt
 make clippy
 
 # Run client in development
-make run-client ARGS="-s test 127.0.0.1"
+make run-client ARGS="127.0.0.1"
 
 # Run server in development  
-make run-server ARGS="-s test"
+make run-server ARGS=""
 ```
 
 ## License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+```
+MIT License
+
+Copyright (c) 2025 Zac
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ## Architecture
 
 ### Core Components
 
-- **PEL (Packet Encryption Layer)**: Custom encrypted communication protocol
+- **Noise Protocol Layer**: Modern encrypted communication using Noise_XX_25519_ChaChaPoly_BLAKE2s
 - **PTY Abstraction**: Cross-platform pseudo-terminal interface  
 - **Error Handling**: Comprehensive error types with context
 - **Async I/O**: Built on Tokio for high performance
 
 ### Security Design
 
-1. **Handshake**: Client/server exchange random IVs and authenticate
-2. **Key Derivation**: SHA-1 based key derivation from shared secret + IV
-3. **Encryption**: AES-128-CBC for data confidentiality
-4. **Authentication**: HMAC-SHA1 for message integrity
-5. **Packet Framing**: Length-prefixed encrypted packets
+1. **Key Exchange**: X25519 elliptic curve Diffie-Hellman
+2. **Handshake**: Noise XX pattern with mutual authentication
+3. **Encryption**: ChaCha20-Poly1305 AEAD for confidentiality and integrity
+4. **Hashing**: BLAKE2s for fast cryptographic operations
+5. **Message Framing**: Length-prefixed encrypted messages with authentication
 
 ## Improvements over Go Version
 
@@ -173,3 +197,36 @@ MIT License - see LICENSE file for details.
 - **Type Safety**: Strong typing prevents many runtime errors
 - **Zero-Cost Abstractions**: High-level features with no runtime overhead
 - **Better Tooling**: Cargo provides excellent dependency management
+
+## Changelog
+
+### v1.0.0 (2025-07-26)
+
+**🚀 Major Release - Noise Protocol Integration**
+
+#### 🔒 Security Enhancements
+- **BREAKING**: Replaced AES-128-CBC with Noise Protocol Framework
+- Implemented Noise_XX_25519_ChaChaPoly_BLAKE2s pattern
+- Added ChaCha20-Poly1305 AEAD encryption for authenticated encryption
+- Integrated X25519 key exchange for perfect forward secrecy
+- Added BLAKE2s hashing for improved performance
+- Enhanced quantum resistance for key exchange operations
+
+#### 🛠️ Infrastructure Improvements  
+- Updated GitHub Actions workflows (deprecated actions/upload-artifact@v3 → v4)
+- Fixed deprecated release workflow actions
+- Updated thiserror dependency (v1.0.69 → v2.0.12)
+- Fixed cargo-deny configuration for modern standards
+- Resolved all clippy warnings and compilation errors
+
+#### 📋 Breaking Changes
+- Removed shared secret authentication (replaced with public key cryptography)
+- Updated command line interface (removed `-s/--secret` flags)
+- Changed file transfer syntax (get:source:dest, put:source:dest)
+- Legacy versions preserved as `tsh_legacy.rs` and `tshd_legacy.rs`
+
+#### 🏗️ Technical Details
+- Cross-platform signal handling improvements (Unix/Windows)
+- Enhanced error handling and logging
+- Maintained backward compatibility in core functionality
+- Zero external runtime dependencies

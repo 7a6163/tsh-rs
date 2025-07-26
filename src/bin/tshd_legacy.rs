@@ -11,7 +11,7 @@ use tokio::signal;
 use tsh_rs::{
     constants::*,
     error::*,
-    noise::{NoiseLayer, NoiseListener},
+    pel::{PktEncLayer, PktEncLayerListener},
     pty::Pty,
 };
 
@@ -20,9 +20,17 @@ async fn main() -> TshResult<()> {
     env_logger::init();
 
     let matches = Command::new("tshd")
-        .version("1.0.0")
-        .author("Zac")
-        .about("Tiny Shell - Remote shell daemon (Noise Protocol)")
+        .version("0.1.0")
+        .author("Your Name <your.email@example.com>")
+        .about("Tiny Shell - Remote shell daemon")
+        .arg(
+            Arg::new("secret")
+                .short('s')
+                .long("secret")
+                .value_name("SECRET")
+                .help("Authentication secret")
+                .default_value(DEFAULT_SECRET),
+        )
         .arg(
             Arg::new("port")
                 .short('p')
@@ -54,6 +62,7 @@ async fn main() -> TshResult<()> {
         )
         .get_matches();
 
+    let secret = matches.get_one::<String>("secret").unwrap().clone();
     let port: u16 = matches
         .get_one::<String>("port")
         .unwrap()
@@ -82,10 +91,10 @@ async fn main() -> TshResult<()> {
 
     if let Some(host) = connect_back_host {
         // Connect-back mode
-        run_connect_back_mode(host, port, delay).await
+        run_connect_back_mode(host, port, secret, delay).await
     } else {
         // Listen mode
-        run_listen_mode(port).await
+        run_listen_mode(port, secret).await
     }
 }
 
@@ -135,11 +144,11 @@ async fn setup_signal_handlers() {
     });
 }
 
-async fn run_listen_mode(port: u16) -> TshResult<()> {
+async fn run_listen_mode(port: u16, secret: String) -> TshResult<()> {
     let address = format!("0.0.0.0:{port}");
     info!("Starting server on {address}");
 
-    let listener = NoiseListener::new(&address).await?;
+    let listener = PktEncLayerListener::new(&address, secret, true).await?;
 
     info!("Server listening on {}", listener.local_addr()?);
 
@@ -161,12 +170,12 @@ async fn run_listen_mode(port: u16) -> TshResult<()> {
     }
 }
 
-async fn run_connect_back_mode(host: &str, port: u16, delay: u64) -> TshResult<()> {
+async fn run_connect_back_mode(host: &str, port: u16, secret: String, delay: u64) -> TshResult<()> {
     let address = format!("{host}:{port}");
     info!("Connect-back mode: connecting to {address} every {delay} seconds");
 
     loop {
-        match NoiseLayer::connect(&address).await {
+        match PktEncLayer::connect(&address, secret.clone(), true).await {
             Ok(connection) => {
                 info!("Connected to {address}");
                 if let Err(e) = handle_connection(connection).await {
@@ -182,14 +191,8 @@ async fn run_connect_back_mode(host: &str, port: u16, delay: u64) -> TshResult<(
     }
 }
 
-async fn handle_connection(mut layer: NoiseLayer) -> TshResult<()> {
+async fn handle_connection(mut layer: PktEncLayer) -> TshResult<()> {
     info!("Handling new connection");
-
-    // Show remote public key for verification
-    if let Some(remote_key) = layer.remote_public_key() {
-        use base64::{engine::general_purpose::STANDARD, Engine};
-        info!("Remote public key: {}", STANDARD.encode(remote_key));
-    }
 
     // Read operation mode
     let mut mode_buf = [0u8; 1];
@@ -205,7 +208,7 @@ async fn handle_connection(mut layer: NoiseLayer) -> TshResult<()> {
     }
 }
 
-async fn handle_shell(layer: &mut NoiseLayer) -> TshResult<()> {
+async fn handle_shell(layer: &mut PktEncLayer) -> TshResult<()> {
     info!("Starting shell session");
 
     let mut pty = Pty::new()?;
@@ -262,7 +265,7 @@ async fn handle_shell(layer: &mut NoiseLayer) -> TshResult<()> {
     Ok(())
 }
 
-async fn handle_file_download(layer: &mut NoiseLayer) -> TshResult<()> {
+async fn handle_file_download(layer: &mut PktEncLayer) -> TshResult<()> {
     info!("Handling file download");
 
     // Read filename
@@ -319,7 +322,7 @@ async fn handle_file_download(layer: &mut NoiseLayer) -> TshResult<()> {
     Ok(())
 }
 
-async fn handle_file_upload(layer: &mut NoiseLayer) -> TshResult<()> {
+async fn handle_file_upload(layer: &mut PktEncLayer) -> TshResult<()> {
     info!("Handling file upload");
 
     // Read destination directory

@@ -112,10 +112,17 @@ jobs:
         cp target/${{ matrix.target }}/release/tsh.exe artifacts/${{ matrix.artifact_name }}/
         cp target/${{ matrix.target }}/release/tshd.exe artifacts/${{ matrix.artifact_name }}/
         
-    - name: Add README and LICENSE
+    - name: Add README and LICENSE (Unix)
+      if: matrix.os != 'windows-latest'
       run: |
         cp README.md artifacts/${{ matrix.artifact_name }}/
         cp LICENSE artifacts/${{ matrix.artifact_name }}/ 2>/dev/null || echo "LICENSE file not found, skipping"
+        
+    - name: Add README and LICENSE (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cp README.md artifacts/${{ matrix.artifact_name }}/
+        if (Test-Path "LICENSE") { cp LICENSE artifacts/${{ matrix.artifact_name }}/ } else { Write-Host "LICENSE file not found, skipping" }
         
     - name: Create tarball (Unix)
       if: matrix.os != 'windows-latest'
