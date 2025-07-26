@@ -208,26 +208,25 @@ jobs:
 
     - name: Create installation script (Windows)
       if: matrix.os == 'windows-latest'
+      shell: cmd
       run: |
-        cat > release/${{ matrix.artifact_name }}/install.bat << 'EOF'
-        @echo off
-        echo 🚀 Installing tsh-rs...
-
-        set INSTALL_DIR=%USERPROFILE%\AppData\Local\tsh-rs
-        if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-
-        copy tsh.exe "%INSTALL_DIR%\"
-        copy tshd.exe "%INSTALL_DIR%\"
-
-        echo ✅ Installation complete!
-        echo 📍 Binaries installed to: %INSTALL_DIR%
-        echo 🔧 Add %INSTALL_DIR% to your PATH environment variable
-        echo.
-        echo Usage:
-        echo   Server: tshd.exe -p 8080
-        echo   Client: tsh.exe -p 8080 server_ip
-        pause
-        EOF
+        echo @echo off > release/${{ matrix.artifact_name }}/install.bat
+        echo echo 🚀 Installing tsh-rs... >> release/${{ matrix.artifact_name }}/install.bat
+        echo. >> release/${{ matrix.artifact_name }}/install.bat
+        echo set INSTALL_DIR=%%USERPROFILE%%\AppData\Local\tsh-rs >> release/${{ matrix.artifact_name }}/install.bat
+        echo if not exist "%%INSTALL_DIR%%" mkdir "%%INSTALL_DIR%%" >> release/${{ matrix.artifact_name }}/install.bat
+        echo. >> release/${{ matrix.artifact_name }}/install.bat
+        echo copy tsh.exe "%%INSTALL_DIR%%\" >> release/${{ matrix.artifact_name }}/install.bat
+        echo copy tshd.exe "%%INSTALL_DIR%%\" >> release/${{ matrix.artifact_name }}/install.bat
+        echo. >> release/${{ matrix.artifact_name }}/install.bat
+        echo echo ✅ Installation complete! >> release/${{ matrix.artifact_name }}/install.bat
+        echo echo 📍 Binaries installed to: %%INSTALL_DIR%% >> release/${{ matrix.artifact_name }}/install.bat
+        echo echo 🔧 Add %%INSTALL_DIR%% to your PATH environment variable >> release/${{ matrix.artifact_name }}/install.bat
+        echo echo. >> release/${{ matrix.artifact_name }}/install.bat
+        echo echo Usage: >> release/${{ matrix.artifact_name }}/install.bat
+        echo echo   Server: tshd.exe -p 8080 >> release/${{ matrix.artifact_name }}/install.bat
+        echo echo   Client: tsh.exe -p 8080 server_ip >> release/${{ matrix.artifact_name }}/install.bat
+        echo pause >> release/${{ matrix.artifact_name }}/install.bat
 
     - name: Generate checksums (Linux)
       if: matrix.os == 'ubuntu-latest'
