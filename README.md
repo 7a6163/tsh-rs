@@ -14,7 +14,7 @@ A Rust implementation of Tiny Shell (tsh) - a remote shell access tool for secur
 - **Connection Modes**:
   - Direct connection to server
   - Connect-back mode (server connects to client)
-- **Modern Rust Implementation**: 
+- **Modern Rust Implementation**:
   - Memory safety
   - Async/await with Tokio
   - Strong error handling
@@ -43,7 +43,7 @@ make install-targets
 # Build Linux x64 binaries
 make linux
 
-# Build Windows x64 binaries  
+# Build Windows x64 binaries
 make windows
 
 # Build macOS binaries (both x64 and ARM64)
@@ -85,7 +85,7 @@ See `make help` for all available commands.
 # Download file
 ./tsh 192.168.1.100 get:/remote/file.txt:./local/
 
-# Upload file  
+# Upload file
 ./tsh 192.168.1.100 put:./local/file.txt:/remote/
 
 # Execute command
@@ -140,7 +140,7 @@ make clippy
 # Run client in development
 make run-client ARGS="127.0.0.1"
 
-# Run server in development  
+# Run server in development
 make run-server ARGS=""
 ```
 
@@ -177,7 +177,7 @@ SOFTWARE.
 ### Core Components
 
 - **Noise Protocol Layer**: Modern encrypted communication using Noise_XX_25519_ChaChaPoly_BLAKE2s
-- **PTY Abstraction**: Cross-platform pseudo-terminal interface  
+- **PTY Abstraction**: Cross-platform pseudo-terminal interface
 - **Error Handling**: Comprehensive error types with context
 - **Async I/O**: Built on Tokio for high performance
 
@@ -200,33 +200,4 @@ SOFTWARE.
 
 ## Changelog
 
-### v1.0.0 (2025-07-26)
-
-**🚀 Major Release - Noise Protocol Integration**
-
-#### 🔒 Security Enhancements
-- **BREAKING**: Replaced AES-128-CBC with Noise Protocol Framework
-- Implemented Noise_XX_25519_ChaChaPoly_BLAKE2s pattern
-- Added ChaCha20-Poly1305 AEAD encryption for authenticated encryption
-- Integrated X25519 key exchange for perfect forward secrecy
-- Added BLAKE2s hashing for improved performance
-- Enhanced quantum resistance for key exchange operations
-
-#### 🛠️ Infrastructure Improvements  
-- Updated GitHub Actions workflows (deprecated actions/upload-artifact@v3 → v4)
-- Fixed deprecated release workflow actions
-- Updated thiserror dependency (v1.0.69 → v2.0.12)
-- Fixed cargo-deny configuration for modern standards
-- Resolved all clippy warnings and compilation errors
-
-#### 📋 Breaking Changes
-- Removed shared secret authentication (replaced with public key cryptography)
-- Updated command line interface (removed `-s/--secret` flags)
-- Changed file transfer syntax (get:source:dest, put:source:dest)
-- Legacy versions preserved as `tsh_legacy.rs` and `tshd_legacy.rs`
-
-#### 🏗️ Technical Details
-- Cross-platform signal handling improvements (Unix/Windows)
-- Enhanced error handling and logging
-- Maintained backward compatibility in core functionality
-- Zero external runtime dependencies
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history and release notes.
