@@ -16,10 +16,10 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-      
+
     - name: Cache cargo dependencies
       uses: actions/cache@v3
       with:
@@ -28,14 +28,14 @@ jobs:
           ~/.cargo/git
           target
         key: ${{ runner.os }}-cargo-audit-${{ hashFiles('**/Cargo.lock') }}
-        
+
     - name: Install cargo-audit
       run: cargo install cargo-audit
-      
+
     - name: Run security audit
       run: cargo audit --json > audit-results.json
       continue-on-error: true
-      
+
     - name: Upload audit results
       uses: actions/upload-artifact@v4
       with:
@@ -49,7 +49,7 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Dependency Review
       uses: actions/dependency-review-action@v3
       with:
@@ -65,19 +65,19 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
       with:
         languages: rust
         config-file: ./.github/codeql/codeql-config.yml
-        
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-      
+
     - name: Build for CodeQL
       run: cargo build --release
-      
+
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
 
@@ -87,16 +87,16 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-      
+
     - name: Install cargo-deny
       run: cargo install cargo-deny
-      
+
     - name: Check licenses and security
       run: cargo deny check
-      
+
   binary-scan:
     name: Binary Security Scan
     runs-on: ubuntu-latest
@@ -104,18 +104,18 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-      
+
     - name: Build release binary
       run: cargo build --release
-      
+
     - name: Install checksec
       run: |
         sudo apt-get update
         sudo apt-get install -y checksec
-        
+
     - name: Run checksec on binaries
       run: |
         echo "=== tsh binary security features ==="
@@ -123,7 +123,7 @@ jobs:
         echo ""
         echo "=== tshd binary security features ==="
         checksec --file=target/release/tshd
-        
+
     - name: Check for hardening flags
       run: |
         echo "=== Checking security flags ==="
