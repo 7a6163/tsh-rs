@@ -20,11 +20,15 @@ pub struct PktEncLayer {
     secret: String,
     send_encrypter: Option<Aes128CbcEnc>,
     recv_decrypter: Option<Aes128CbcDec>,
+    #[allow(dead_code)]
     send_pkt_ctr: u32,
+    #[allow(dead_code)]
     recv_pkt_ctr: u32,
     send_hmac: Option<HmacSha1>,
     recv_hmac: Option<HmacSha1>,
+    #[allow(dead_code)]
     read_buffer: Vec<u8>,
+    #[allow(dead_code)]
     write_buffer: Vec<u8>,
 }
 
@@ -40,7 +44,7 @@ impl PktEncLayerListener {
     pub async fn new(address: &str, secret: String, is_server: bool) -> TshResult<Self> {
         let listener = TcpListener::bind(address)
             .await
-            .map_err(|e| TshError::network(format!("Failed to bind to {}: {}", address, e)))?;
+            .map_err(|e| TshError::network(format!("Failed to bind to {address}: {e}")))?;
 
         Ok(PktEncLayerListener {
             listener,
@@ -55,7 +59,7 @@ impl PktEncLayerListener {
             .listener
             .accept()
             .await
-            .map_err(|e| TshError::network(format!("Failed to accept connection: {}", e)))?;
+            .map_err(|e| TshError::network(format!("Failed to accept connection: {e}")))?;
 
         let mut layer = PktEncLayer::new(stream, self.secret.clone());
         layer.handshake(self.is_server).await?;
@@ -66,7 +70,7 @@ impl PktEncLayerListener {
     pub fn local_addr(&self) -> TshResult<std::net::SocketAddr> {
         self.listener
             .local_addr()
-            .map_err(|e| TshError::network(format!("Failed to get local address: {}", e)))
+            .map_err(|e| TshError::network(format!("Failed to get local address: {e}")))
     }
 }
 
@@ -92,7 +96,7 @@ impl PktEncLayer {
         let stream = timeout(Duration::from_secs(5), TcpStream::connect(address))
             .await
             .map_err(|_| TshError::Timeout)?
-            .map_err(|e| TshError::network(format!("Failed to connect to {}: {}", address, e)))?;
+            .map_err(|e| TshError::network(format!("Failed to connect to {address}: {e}")))?;
 
         let mut layer = PktEncLayer::new(stream, secret);
         layer.handshake(is_server).await?;
@@ -129,22 +133,22 @@ impl PktEncLayer {
 
             self.send_encrypter = Some(
                 Aes128CbcEnc::new_from_slices(&key1[..16], &iv1[..16]).map_err(|e| {
-                    TshError::encryption(format!("Failed to create encrypter: {}", e))
+                    TshError::encryption(format!("Failed to create encrypter: {e}"))
                 })?,
             );
             self.recv_decrypter = Some(
                 Aes128CbcDec::new_from_slices(&key2[..16], &iv2[..16]).map_err(|e| {
-                    TshError::encryption(format!("Failed to create decrypter: {}", e))
+                    TshError::encryption(format!("Failed to create decrypter: {e}"))
                 })?,
             );
 
             self.send_hmac = Some(
                 HmacSha1::new_from_slice(&key1)
-                    .map_err(|e| TshError::encryption(format!("Failed to create HMAC: {}", e)))?,
+                    .map_err(|e| TshError::encryption(format!("Failed to create HMAC: {e}")))?,
             );
             self.recv_hmac = Some(
                 HmacSha1::new_from_slice(&key2)
-                    .map_err(|e| TshError::encryption(format!("Failed to create HMAC: {}", e)))?,
+                    .map_err(|e| TshError::encryption(format!("Failed to create HMAC: {e}")))?,
             );
 
             // Read and verify challenge
@@ -177,22 +181,22 @@ impl PktEncLayer {
 
             self.send_encrypter = Some(
                 Aes128CbcEnc::new_from_slices(&key1[..16], &iv[..16]).map_err(|e| {
-                    TshError::encryption(format!("Failed to create encrypter: {}", e))
+                    TshError::encryption(format!("Failed to create encrypter: {e}"))
                 })?,
             );
             self.recv_decrypter = Some(
                 Aes128CbcDec::new_from_slices(&key2[..16], &iv[20..36]).map_err(|e| {
-                    TshError::encryption(format!("Failed to create decrypter: {}", e))
+                    TshError::encryption(format!("Failed to create decrypter: {e}"))
                 })?,
             );
 
             self.send_hmac = Some(
                 HmacSha1::new_from_slice(&key1)
-                    .map_err(|e| TshError::encryption(format!("Failed to create HMAC: {}", e)))?,
+                    .map_err(|e| TshError::encryption(format!("Failed to create HMAC: {e}")))?,
             );
             self.recv_hmac = Some(
                 HmacSha1::new_from_slice(&key2)
-                    .map_err(|e| TshError::encryption(format!("Failed to create HMAC: {}", e)))?,
+                    .map_err(|e| TshError::encryption(format!("Failed to create HMAC: {e}")))?,
             );
 
             // Send challenge

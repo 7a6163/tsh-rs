@@ -22,7 +22,7 @@ impl Pty {
 
         let pty_pair = pty_system
             .openpty(pty_size)
-            .map_err(|e| TshError::pty(format!("Failed to create PTY: {}", e)))?;
+            .map_err(|e| TshError::pty(format!("Failed to create PTY: {e}")))?;
 
         // Spawn shell
         let mut cmd = CommandBuilder::new(Self::get_shell_command());
@@ -31,7 +31,7 @@ impl Pty {
         let _child = pty_pair
             .slave
             .spawn_command(cmd)
-            .map_err(|e| TshError::pty(format!("Failed to spawn shell: {}", e)))?;
+            .map_err(|e| TshError::pty(format!("Failed to spawn shell: {e}")))?;
 
         Ok(Pty {
             master: Arc::new(Mutex::new(pty_pair.master)),
@@ -52,7 +52,7 @@ impl Pty {
         let master = self.master.lock().await;
         let reader = master
             .try_clone_reader()
-            .map_err(|e| TshError::pty(format!("Failed to clone reader: {}", e)))?;
+            .map_err(|e| TshError::pty(format!("Failed to clone reader: {e}")))?;
 
         // For simplicity, we'll use blocking I/O wrapped in spawn_blocking
         let buf_len = buf.len();
@@ -67,8 +67,8 @@ impl Pty {
             }
         })
         .await
-        .map_err(|e| TshError::pty(format!("Task join error: {}", e)))?
-        .map_err(|e| TshError::pty(format!("Read error: {}", e)))?;
+        .map_err(|e| TshError::pty(format!("Task join error: {e}")))?
+        .map_err(|e| TshError::pty(format!("Read error: {e}")))?;
 
         buf[..n].copy_from_slice(&data[..n]);
         Ok(n)
@@ -93,6 +93,6 @@ impl Pty {
         let master = self.master.lock().await;
         master
             .resize(size)
-            .map_err(|e| TshError::pty(format!("Failed to resize PTY: {}", e)))
+            .map_err(|e| TshError::pty(format!("Failed to resize PTY: {e}")))
     }
 }

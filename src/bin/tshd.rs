@@ -138,15 +138,15 @@ async fn setup_signal_handlers() {
                 process::exit(0);
             }
             Err(e) => {
-                error!("Failed to listen for Ctrl+C: {}", e);
+                error!("Failed to listen for Ctrl+C: {e}");
             }
         }
     });
 }
 
 async fn run_listen_mode(port: u16, secret: String) -> TshResult<()> {
-    let address = format!("0.0.0.0:{}", port);
-    info!("Starting server on {}", address);
+    let address = format!("0.0.0.0:{port}");
+    info!("Starting server on {address}");
 
     let listener = PktEncLayerListener::new(&address, secret, true).await?;
 
@@ -158,12 +158,12 @@ async fn run_listen_mode(port: u16, secret: String) -> TshResult<()> {
                 info!("New connection accepted");
                 tokio::spawn(async move {
                     if let Err(e) = handle_connection(connection).await {
-                        error!("Connection error: {}", e);
+                        error!("Connection error: {e}");
                     }
                 });
             }
             Err(e) => {
-                error!("Failed to accept connection: {}", e);
+                error!("Failed to accept connection: {e}");
                 sleep(Duration::from_secs(1)).await;
             }
         }
@@ -171,22 +171,19 @@ async fn run_listen_mode(port: u16, secret: String) -> TshResult<()> {
 }
 
 async fn run_connect_back_mode(host: &str, port: u16, secret: String, delay: u64) -> TshResult<()> {
-    let address = format!("{}:{}", host, port);
-    info!(
-        "Connect-back mode: connecting to {} every {} seconds",
-        address, delay
-    );
+    let address = format!("{host}:{port}");
+    info!("Connect-back mode: connecting to {address} every {delay} seconds");
 
     loop {
         match PktEncLayer::connect(&address, secret.clone(), true).await {
             Ok(connection) => {
-                info!("Connected to {}", address);
+                info!("Connected to {address}");
                 if let Err(e) = handle_connection(connection).await {
-                    error!("Connection error: {}", e);
+                    error!("Connection error: {e}");
                 }
             }
             Err(e) => {
-                warn!("Failed to connect to {}: {}", address, e);
+                warn!("Failed to connect to {address}: {e}");
             }
         }
 
@@ -202,7 +199,7 @@ async fn handle_connection(mut layer: PktEncLayer) -> TshResult<()> {
     layer.read(&mut mode_buf).await?;
     let mode = OperationMode::from(mode_buf[0]);
 
-    info!("Operation mode: {:?}", mode);
+    info!("Operation mode: {mode:?}");
 
     match mode {
         OperationMode::RunShell => handle_shell(&mut layer).await,
@@ -228,7 +225,7 @@ async fn handle_shell(layer: &mut PktEncLayer) -> TshResult<()> {
                             break;
                         }
                         if let Err(e) = pty.write(&client_buffer[..n]).await {
-                            error!("Failed to write to PTY: {}", e);
+                            error!("Failed to write to PTY: {e}");
                             break;
                         }
                     }
@@ -237,7 +234,7 @@ async fn handle_shell(layer: &mut PktEncLayer) -> TshResult<()> {
                         break;
                     }
                     Err(e) => {
-                        error!("Error reading from client: {}", e);
+                        error!("Error reading from client: {e}");
                         break;
                     }
                 }
@@ -251,12 +248,12 @@ async fn handle_shell(layer: &mut PktEncLayer) -> TshResult<()> {
                             break;
                         }
                         if let Err(e) = layer.write(&pty_buffer[..n]).await {
-                            error!("Failed to write to client: {}", e);
+                            error!("Failed to write to client: {e}");
                             break;
                         }
                     }
                     Err(e) => {
-                        error!("Error reading from PTY: {}", e);
+                        error!("Error reading from PTY: {e}");
                         break;
                     }
                 }
@@ -289,14 +286,14 @@ async fn handle_file_download(layer: &mut PktEncLayer) -> TshResult<()> {
         filename.push_str(&chunk);
     }
 
-    info!("Downloading file: {}", filename);
+    info!("Downloading file: {filename}");
 
     // Open file for reading
     use tokio::fs::File;
     let mut file = match File::open(&filename).await {
         Ok(f) => f,
         Err(e) => {
-            error!("Failed to open file {}: {}", filename, e);
+            error!("Failed to open file {filename}: {e}");
             // Send error status
             layer.write(&[0u8; 8]).await?; // 0 size indicates error
             return Ok(());
@@ -321,7 +318,7 @@ async fn handle_file_download(layer: &mut PktEncLayer) -> TshResult<()> {
         total_sent += n as u64;
     }
 
-    info!("File download completed: {} bytes", total_sent);
+    info!("File download completed: {total_sent} bytes");
     Ok(())
 }
 
@@ -351,7 +348,7 @@ async fn handle_file_upload(layer: &mut PktEncLayer) -> TshResult<()> {
     layer.read(&mut size_buf).await?;
     let file_size = u64::from_le_bytes(size_buf);
 
-    info!("Uploading file to {}, size: {} bytes", dest_dir, file_size);
+    info!("Uploading file to {dest_dir}, size: {file_size} bytes");
 
     // Create destination file
     use std::path::Path;
@@ -359,7 +356,7 @@ async fn handle_file_upload(layer: &mut PktEncLayer) -> TshResult<()> {
 
     let dest_path = Path::new(&dest_dir).join("uploaded_file");
     let mut file = File::create(&dest_path).await.map_err(|e| {
-        TshError::file_transfer(format!("Failed to create destination file: {}", e))
+        TshError::file_transfer(format!("Failed to create destination file: {e}"))
     })?;
 
     // Receive file content
@@ -376,11 +373,11 @@ async fn handle_file_upload(layer: &mut PktEncLayer) -> TshResult<()> {
 
         file.write_all(&buffer[..n])
             .await
-            .map_err(|e| TshError::file_transfer(format!("Failed to write to file: {}", e)))?;
+            .map_err(|e| TshError::file_transfer(format!("Failed to write to file: {e}")))?;
 
         total_received += n as u64;
     }
 
-    info!("File upload completed: {} bytes", total_received);
+    info!("File upload completed: {total_received} bytes");
     Ok(())
 }

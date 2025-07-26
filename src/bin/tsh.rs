@@ -76,9 +76,9 @@ async fn main() -> TshResult<()> {
 }
 
 async fn handle_connect_back(secret: String, port: u16, actions: Vec<&str>) -> TshResult<()> {
-    info!("Starting connect-back mode on port {}", port);
+    info!("Starting connect-back mode on port {port}");
 
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
         .await
         .map_err(|_| TshError::network("Address already in use"))?;
 
@@ -87,7 +87,7 @@ async fn handle_connect_back(secret: String, port: u16, actions: Vec<&str>) -> T
     let (stream, _) = listener
         .accept()
         .await
-        .map_err(|e| TshError::network(format!("Failed to accept connection: {}", e)))?;
+        .map_err(|e| TshError::network(format!("Failed to accept connection: {e}")))?;
 
     let mut layer = PktEncLayer::new(stream, secret);
     layer.handshake(false).await?;
@@ -110,10 +110,10 @@ async fn handle_direct_connection(
     let address = if target.contains(':') {
         target.to_string()
     } else {
-        format!("{}:{}", target, port)
+        format!("{target}:{port}")
     };
 
-    info!("Connecting to {}", address);
+    info!("Connecting to {address}");
 
     let mut layer = PktEncLayer::connect(&address, secret, false).await?;
 
@@ -157,17 +157,17 @@ async fn run_interactive_shell(layer: &mut PktEncLayer) -> TshResult<()> {
     // Send shell mode
     layer.write(&[OperationMode::RunShell as u8]).await?;
 
-    enable_raw_mode().map_err(|e| TshError::system(format!("Failed to enable raw mode: {}", e)))?;
+    enable_raw_mode().map_err(|e| TshError::system(format!("Failed to enable raw mode: {e}")))?;
     execute!(stdout(), EnterAlternateScreen)
-        .map_err(|e| TshError::system(format!("Failed to enter alternate screen: {}", e)))?;
+        .map_err(|e| TshError::system(format!("Failed to enter alternate screen: {e}")))?;
 
     let result = shell_loop(layer).await;
 
     // Cleanup
     disable_raw_mode()
-        .map_err(|e| TshError::system(format!("Failed to disable raw mode: {}", e)))?;
+        .map_err(|e| TshError::system(format!("Failed to disable raw mode: {e}")))?;
     execute!(stdout(), LeaveAlternateScreen)
-        .map_err(|e| TshError::system(format!("Failed to leave alternate screen: {}", e)))?;
+        .map_err(|e| TshError::system(format!("Failed to leave alternate screen: {e}")))?;
 
     result
 }
@@ -214,7 +214,7 @@ async fn shell_loop(layer: &mut PktEncLayer) -> TshResult<()> {
             }
             Ok(Err(TshError::ConnectionClosed)) => break,
             Ok(Err(e)) => {
-                error!("Read error: {}", e);
+                error!("Read error: {e}");
                 break;
             }
             Err(_) => {
@@ -228,7 +228,7 @@ async fn shell_loop(layer: &mut PktEncLayer) -> TshResult<()> {
 }
 
 async fn download_file(layer: &mut PktEncLayer, source: &str, dest_dir: &str) -> TshResult<()> {
-    info!("Downloading {} to {}", source, dest_dir);
+    info!("Downloading {source} to {dest_dir}");
 
     // Send get command
     layer.write(&[OperationMode::GetFile as u8]).await?;
@@ -244,7 +244,7 @@ async fn download_file(layer: &mut PktEncLayer, source: &str, dest_dir: &str) ->
     let dest_path = Path::new(dest_dir).join(Path::new(source).file_name().unwrap());
     let mut dest_file = File::create(&dest_path)
         .await
-        .map_err(|e| TshError::file_transfer(format!("Failed to create file: {}", e)))?;
+        .map_err(|e| TshError::file_transfer(format!("Failed to create file: {e}")))?;
 
     // Setup progress bar
     let pb = ProgressBar::new(file_size);
@@ -269,7 +269,7 @@ async fn download_file(layer: &mut PktEncLayer, source: &str, dest_dir: &str) ->
         dest_file
             .write_all(&buffer[..n])
             .await
-            .map_err(|e| TshError::file_transfer(format!("Failed to write to file: {}", e)))?;
+            .map_err(|e| TshError::file_transfer(format!("Failed to write to file: {e}")))?;
 
         total_read += n as u64;
         pb.set_position(total_read);
@@ -282,17 +282,17 @@ async fn download_file(layer: &mut PktEncLayer, source: &str, dest_dir: &str) ->
 }
 
 async fn upload_file(layer: &mut PktEncLayer, source: &str, dest_dir: &str) -> TshResult<()> {
-    info!("Uploading {} to {}", source, dest_dir);
+    info!("Uploading {source} to {dest_dir}");
 
     // Open source file
     let mut source_file = File::open(source)
         .await
-        .map_err(|e| TshError::file_transfer(format!("Failed to open file: {}", e)))?;
+        .map_err(|e| TshError::file_transfer(format!("Failed to open file: {e}")))?;
 
     let file_size = source_file
         .metadata()
         .await
-        .map_err(|e| TshError::file_transfer(format!("Failed to get file metadata: {}", e)))?
+        .map_err(|e| TshError::file_transfer(format!("Failed to get file metadata: {e}")))?
         .len();
 
     // Send put command
@@ -319,7 +319,7 @@ async fn upload_file(layer: &mut PktEncLayer, source: &str, dest_dir: &str) -> T
         let n = source_file
             .read(&mut buffer)
             .await
-            .map_err(|e| TshError::file_transfer(format!("Failed to read from file: {}", e)))?;
+            .map_err(|e| TshError::file_transfer(format!("Failed to read from file: {e}")))?;
 
         if n == 0 {
             break;
@@ -337,7 +337,7 @@ async fn upload_file(layer: &mut PktEncLayer, source: &str, dest_dir: &str) -> T
 }
 
 async fn execute_command(layer: &mut PktEncLayer, command: &str) -> TshResult<()> {
-    info!("Executing command: {}", command);
+    info!("Executing command: {command}");
 
     // Send command
     layer.write(command.as_bytes()).await?;
