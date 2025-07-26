@@ -14,6 +14,10 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   create-release:
     name: Create Release
@@ -197,8 +201,8 @@ jobs:
         echo "🔧 Make sure $INSTALL_DIR is in your PATH"
         echo ""
         echo "Usage:"
-        echo "  Server: tshd -s your_secret -p 8080"
-        echo "  Client: tsh -s your_secret -p 8080 server_ip"
+        echo "  Server: tshd -p 8080"
+        echo "  Client: tsh -p 8080 server_ip"
         EOF
         chmod +x release/${{ matrix.artifact_name }}/install.sh
 
@@ -220,8 +224,8 @@ jobs:
         echo 🔧 Add %INSTALL_DIR% to your PATH environment variable
         echo.
         echo Usage:
-        echo   Server: tshd.exe -s your_secret -p 8080
-        echo   Client: tsh.exe -s your_secret -p 8080 server_ip
+        echo   Server: tshd.exe -p 8080
+        echo   Client: tsh.exe -p 8080 server_ip
         pause
         EOF
 
