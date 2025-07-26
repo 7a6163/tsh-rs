@@ -37,7 +37,10 @@ jobs:
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
 
-    - name: Run tests
+    - name: Run unit tests
+      run: cargo test --lib --verbose
+      
+    - name: Run all tests
       run: cargo test --verbose
 
     - name: Check documentation
@@ -104,13 +107,11 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         cp target/${{ matrix.target }}/release/tsh artifacts/${{ matrix.artifact_name }}/
-        cp target/${{ matrix.target }}/release/tshd artifacts/${{ matrix.artifact_name }}/
 
     - name: Copy binaries (Windows)
       if: matrix.os == 'windows-latest'
       run: |
         cp target/${{ matrix.target }}/release/tsh.exe artifacts/${{ matrix.artifact_name }}/
-        cp target/${{ matrix.target }}/release/tshd.exe artifacts/${{ matrix.artifact_name }}/
 
     - name: Add README and LICENSE (Unix)
       if: matrix.os != 'windows-latest'

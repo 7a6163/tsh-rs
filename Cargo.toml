@@ -8,11 +8,7 @@ license = "MIT"
 
 [[bin]]
 name = "tsh"
-path = "src/bin/tsh.rs"
-
-[[bin]]
-name = "tshd"
-path = "src/bin/tshd.rs"
+path = "src/main.rs"
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }

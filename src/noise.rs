@@ -5,10 +5,11 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 
-// Noise protocol pattern: XX
+// Noise protocol pattern: XX with PSK authentication layer
 // -> e
-// <- e, ee, s, es
+// <- e, ee, s, es  
 // -> s, se
+// Then: PSK challenge-response
 const NOISE_PATTERN: &str = "Noise_XX_25519_ChaChaPoly_BLAKE2s";
 
 // Maximum message size for Noise (64KB - overhead)
@@ -24,11 +25,13 @@ pub struct NoiseLayer {
 pub struct NoiseListener {
     listener: TcpListener,
     static_key: Vec<u8>,
+    public_key: Vec<u8>,
+    psk: String,
 }
 
 impl NoiseListener {
-    /// Create a new Noise listener
-    pub async fn new(address: &str) -> TshResult<Self> {
+    /// Create a new Noise listener with static keys
+    pub async fn new(address: &str, psk: &str) -> TshResult<Self> {
         let listener = TcpListener::bind(address)
             .await
             .map_err(|e| TshError::network(format!("Failed to bind to {address}: {e}")))?;
@@ -42,10 +45,12 @@ impl NoiseListener {
         Ok(NoiseListener {
             listener,
             static_key: keypair.private,
+            public_key: keypair.public,
+            psk: psk.to_string(),
         })
     }
 
-    /// Accept a new connection and perform Noise handshake
+    /// Accept a new connection and perform Noise handshake + PSK auth
     pub async fn accept(&self) -> TshResult<NoiseLayer> {
         let (stream, addr) = self
             .listener
@@ -55,16 +60,22 @@ impl NoiseListener {
 
         log::info!("Accepted connection from: {addr}");
 
-        // Create responder
+        // Create responder with static key
         let builder = Builder::new(NOISE_PATTERN.parse().unwrap());
         let handshake = builder
             .local_private_key(&self.static_key)
             .build_responder()
             .map_err(|e| TshError::encryption(format!("Failed to build responder: {e}")))?;
 
-        // Perform handshake
-        let transport = perform_handshake_responder(stream, handshake).await?;
-        Ok(transport)
+        // Perform Noise handshake
+        let mut layer = perform_handshake_responder(stream, handshake).await?;
+        
+        // Perform PSK authentication over the encrypted channel
+        if !perform_psk_auth_server(&mut layer, &self.psk).await? {
+            return Err(TshError::protocol("PSK authentication failed"));
+        }
+        
+        Ok(layer)
     }
 
     /// Get the local address of the listener
@@ -74,31 +85,39 @@ impl NoiseListener {
             .map_err(|e| TshError::network(format!("Failed to get local address: {e}")))
     }
 
-    /// Get the server's public key (for client pre-sharing)
+    /// Get the server's public key
     pub fn public_key(&self) -> TshResult<Vec<u8>> {
-        let builder = Builder::new(NOISE_PATTERN.parse().unwrap());
-        let keypair = builder.generate_keypair().unwrap();
-        Ok(keypair.public)
+        Ok(self.public_key.clone())
     }
 }
 
 impl NoiseLayer {
-    /// Connect to a remote address and perform Noise handshake
-    pub async fn connect(address: &str) -> TshResult<Self> {
+    /// Connect to a remote address and perform Noise handshake + PSK auth
+    pub async fn connect(address: &str, psk: &str) -> TshResult<Self> {
         let stream = timeout(Duration::from_secs(5), TcpStream::connect(address))
             .await
             .map_err(|_| TshError::Timeout)?
             .map_err(|e| TshError::network(format!("Failed to connect to {address}: {e}")))?;
 
-        // Create initiator
+        // Create initiator with static key
         let builder = Builder::new(NOISE_PATTERN.parse().unwrap());
+        let keypair = builder
+            .generate_keypair()
+            .map_err(|e| TshError::encryption(format!("Failed to generate keypair: {e}")))?;
         let handshake = builder
+            .local_private_key(&keypair.private)
             .build_initiator()
             .map_err(|e| TshError::encryption(format!("Failed to build initiator: {e}")))?;
 
-        // Perform handshake
-        let transport = perform_handshake_initiator(stream, handshake).await?;
-        Ok(transport)
+        // Perform Noise handshake
+        let mut layer = perform_handshake_initiator(stream, handshake).await?;
+        
+        // Perform PSK authentication over the encrypted channel
+        if !perform_psk_auth_client(&mut layer, psk).await? {
+            return Err(TshError::protocol("PSK authentication failed"));
+        }
+        
+        Ok(layer)
     }
 
     /// Write encrypted data
@@ -178,7 +197,7 @@ impl NoiseLayer {
     }
 }
 
-/// Perform Noise handshake as initiator
+/// Perform Noise handshake as initiator (XX pattern)
 pub async fn perform_handshake_initiator(
     mut stream: TcpStream,
     mut handshake: HandshakeState,
@@ -225,7 +244,7 @@ pub async fn perform_handshake_initiator(
     Ok(NoiseLayer { stream, transport })
 }
 
-/// Perform Noise handshake as responder
+/// Perform Noise handshake as responder (XX pattern)
 pub async fn perform_handshake_responder(
     mut stream: TcpStream,
     mut handshake: HandshakeState,
@@ -272,7 +291,111 @@ pub async fn perform_handshake_responder(
     Ok(NoiseLayer { stream, transport })
 }
 
-/// Helper function to derive key from password
+/// Perform PSK authentication as server (over encrypted channel)
+async fn perform_psk_auth_server(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
+    use sha2::{Digest, Sha256};
+    
+    // Generate challenge
+    use rand::Rng;
+    let challenge: [u8; 32] = {
+        let mut rng = rand::thread_rng();
+        rng.gen()
+    };
+    
+    // Send challenge
+    let mut buf = vec![0u8; MAX_MESSAGE_SIZE + 16];
+    let len = layer.transport
+        .write_message(&challenge, &mut buf)
+        .map_err(|e| TshError::encryption(format!("Failed to encrypt challenge: {e}")))?;
+    
+    let len_bytes = (len as u32).to_be_bytes();
+    layer.stream.write_all(&len_bytes).await.map_err(TshError::Io)?;
+    layer.stream.write_all(&buf[..len]).await.map_err(TshError::Io)?;
+    
+    // Read response
+    let mut len_bytes = [0u8; 4];
+    layer.stream.read_exact(&mut len_bytes).await.map_err(TshError::Io)?;
+    let msg_len = u32::from_be_bytes(len_bytes) as usize;
+    
+    let mut encrypted = vec![0u8; msg_len];
+    layer.stream.read_exact(&mut encrypted).await.map_err(TshError::Io)?;
+    
+    let mut response = vec![0u8; 64];
+    let len = layer.transport
+        .read_message(&encrypted, &mut response)
+        .map_err(|e| TshError::encryption(format!("Failed to decrypt response: {e}")))?;
+    
+    // Verify response
+    let mut hasher = Sha256::new();
+    hasher.update(&challenge);
+    hasher.update(psk.as_bytes());
+    let expected = hasher.finalize();
+    
+    let is_valid = &response[..len] == expected.as_slice();
+    
+    // Send result
+    let result = if is_valid { b"OK".as_slice() } else { b"FAIL".as_slice() };
+    let len = layer.transport
+        .write_message(result, &mut buf)
+        .map_err(|e| TshError::encryption(format!("Failed to encrypt result: {e}")))?;
+    
+    let len_bytes = (len as u32).to_be_bytes();
+    layer.stream.write_all(&len_bytes).await.map_err(TshError::Io)?;
+    layer.stream.write_all(&buf[..len]).await.map_err(TshError::Io)?;
+    
+    Ok(is_valid)
+}
+
+/// Perform PSK authentication as client (over encrypted channel)
+async fn perform_psk_auth_client(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
+    use sha2::{Digest, Sha256};
+    
+    // Read challenge
+    let mut len_bytes = [0u8; 4];
+    layer.stream.read_exact(&mut len_bytes).await.map_err(TshError::Io)?;
+    let msg_len = u32::from_be_bytes(len_bytes) as usize;
+    
+    let mut encrypted = vec![0u8; msg_len];
+    layer.stream.read_exact(&mut encrypted).await.map_err(TshError::Io)?;
+    
+    let mut challenge = vec![0u8; 64];
+    let len = layer.transport
+        .read_message(&encrypted, &mut challenge)
+        .map_err(|e| TshError::encryption(format!("Failed to decrypt challenge: {e}")))?;
+    
+    // Generate response
+    let mut hasher = Sha256::new();
+    hasher.update(&challenge[..len]);
+    hasher.update(psk.as_bytes());
+    let response = hasher.finalize();
+    
+    // Send response
+    let mut buf = vec![0u8; MAX_MESSAGE_SIZE + 16];
+    let msg_len = layer.transport
+        .write_message(&response, &mut buf)
+        .map_err(|e| TshError::encryption(format!("Failed to encrypt response: {e}")))?;
+    
+    let len_bytes = (msg_len as u32).to_be_bytes();
+    layer.stream.write_all(&len_bytes).await.map_err(TshError::Io)?;
+    layer.stream.write_all(&buf[..msg_len]).await.map_err(TshError::Io)?;
+    
+    // Read result
+    let mut len_bytes = [0u8; 4];
+    layer.stream.read_exact(&mut len_bytes).await.map_err(TshError::Io)?;
+    let msg_len = u32::from_be_bytes(len_bytes) as usize;
+    
+    let mut encrypted = vec![0u8; msg_len];
+    layer.stream.read_exact(&mut encrypted).await.map_err(TshError::Io)?;
+    
+    let mut result = vec![0u8; 16];
+    let len = layer.transport
+        .read_message(&encrypted, &mut result)
+        .map_err(|e| TshError::encryption(format!("Failed to decrypt result: {e}")))?;
+    
+    Ok(&result[..len] == b"OK")
+}
+
+/// Helper function to derive key from password (legacy)
 pub fn derive_key_from_password(password: &str, salt: &[u8]) -> Vec<u8> {
     use sha2::{Digest, Sha256};
 

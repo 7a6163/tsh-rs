@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo:*)",
+      "WebFetch(domain:embarkstudios.github.io)",
+      "WebFetch(domain:github.com)",
+      "Bash(cp:*)",
+      "Bash(rm:*)",
+      "Bash(pkill:*)",
+      "Bash(RUST_LOG=info ./target/release/tsh client 127.0.0.1:7777 --psk testkey get:/tmp/test.txt:/tmp/tsh-test)",
+      "Bash(kill:*)",
+      "Bash(RUST_LOG=info ./target/release/tsh client 127.0.0.1:5555 --psk secretkey \"ls -la\")",
+      "Bash(RUST_LOG=debug ./target/release/tsh client 127.0.0.1:4444 --psk secretkey \"pwd\")",
+      "Bash(RUST_LOG=debug ./target/release/tsh client 127.0.0.1:12345 --psk simpletest \"echo hello\")",
+      "Bash(# 清理舊進程\npkill -f tsh\nsleep 1\n\n# 啟動服務器\n./target/release/tsh server --port 10000 --psk testcmd > /tmp/test_cmd.log 2>&1 &\nSERVER_PID=$!\necho \"\"Server PID: $SERVER_PID\"\"\nsleep 2\n\n# 測試簡單命令\necho \"\"=== Testing echo command ===\"\"\n./target/release/tsh client 127.0.0.1:10000 --psk testcmd \"\"echo ''Hello from tsh!''\"\"\n\necho -e \"\"\\n=== Testing pwd command ===\"\"\n./target/release/tsh client 127.0.0.1:10000 --psk testcmd \"\"pwd\"\"\n\necho -e \"\"\\n=== Testing ls command ===\"\"\n./target/release/tsh client 127.0.0.1:10000 --psk testcmd \"\"ls -la | head -5\"\"\n\n# 清理\nkill $SERVER_PID 2>/dev/null)",
+      "Bash(# 創建測試文件和目錄\necho \"\"This is a test file for download\"\" > /tmp/test_download.txt\nmkdir -p /tmp/tsh_downloads\n\n# 啟動服務器\n./target/release/tsh server --port 10001 --psk filetest > /tmp/test_file.log 2>&1 &\nSERVER_PID=$!\necho \"\"Server PID: $SERVER_PID\"\"\nsleep 2\n\n# 測試文件下載\necho \"\"=== Testing file download ===\"\"\n./target/release/tsh client 127.0.0.1:10001 --psk filetest get:/tmp/test_download.txt:/tmp/tsh_downloads\n\n# 檢查下載的文件\necho -e \"\"\\n=== Checking downloaded file ===\"\"\nls -la /tmp/tsh_downloads/\ncat /tmp/tsh_downloads/test_download.txt 2>/dev/null\n\n# 清理\nkill $SERVER_PID 2>/dev/null\nrm -rf /tmp/tsh_downloads)",
+      "Bash(# 創建測試文件\necho \"\"This is a test file for upload\"\" > /tmp/test_upload.txt\nmkdir -p /tmp/tsh_uploads\n\n# 啟動服務器\n./target/release/tsh server --port 10002 --psk uploadtest > /tmp/test_upload.log 2>&1 &\nSERVER_PID=$!\necho \"\"Server PID: $SERVER_PID\"\"\nsleep 2\n\n# 測試文件上傳\necho \"\"=== Testing file upload ===\"\"\n./target/release/tsh client 127.0.0.1:10002 --psk uploadtest put:/tmp/test_upload.txt:/tmp/tsh_uploads\n\n# 檢查上傳的文件\necho -e \"\"\\n=== Checking uploaded file ===\"\"\nls -la /tmp/tsh_uploads/\ncat /tmp/tsh_uploads/test_upload.txt 2>/dev/null\n\n# 清理\nkill $SERVER_PID 2>/dev/null\nrm -rf /tmp/tsh_uploads)",
+      "Bash(# 啟動服務器\n./target/release/tsh server --port 10003 --psk shelltest > /tmp/test_shell.log 2>&1 &\nSERVER_PID=$!\necho \"\"Server PID: $SERVER_PID\"\"\nsleep 2\n\n# 測試互動式 shell (使用 echo 發送命令)\necho \"\"=== Testing interactive shell ===\"\"\necho -e \"\"whoami\\npwd\\nexit\"\" | ./target/release/tsh client 127.0.0.1:10003 --psk shelltest 2>&1 | head -20\n\n# 清理\nkill $SERVER_PID 2>/dev/null)",
+      "Bash(# 先啟動客戶端監聽模式\n./target/release/tsh client cb --port 10004 --psk reverse123 > /tmp/test_reverse_client.log 2>&1 &\nCLIENT_PID=$!\necho \"\"Client listener PID: $CLIENT_PID\"\"\nsleep 2\n\n# 啟動服務器連接回去\n./target/release/tsh server --connect-back 127.0.0.1 --port 10004 --psk reverse123 > /tmp/test_reverse_server.log 2>&1 &\nSERVER_PID=$!\necho \"\"Server connect-back PID: $SERVER_PID\"\"\nsleep 5\n\n# 檢查日誌\necho \"\"=== Client log ===\"\"\ncat /tmp/test_reverse_client.log | head -20\n\necho -e \"\"\\n=== Server log ===\"\"\ncat /tmp/test_reverse_server.log | head -20\n\n# 清理\nkill $CLIENT_PID $SERVER_PID 2>/dev/null)",
+      "Bash(git rebase:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}

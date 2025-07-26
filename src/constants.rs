@@ -7,6 +7,7 @@ pub enum OperationMode {
     GetFile = 1,
     PutFile = 2,
     RunShell = 3,
+    RunCommand = 4,
 }
 
 impl From<u8> for OperationMode {
@@ -15,6 +16,7 @@ impl From<u8> for OperationMode {
             1 => OperationMode::GetFile,
             2 => OperationMode::PutFile,
             3 => OperationMode::RunShell,
+            4 => OperationMode::RunCommand,
             _ => OperationMode::RunShell, // Default fallback
         }
     }

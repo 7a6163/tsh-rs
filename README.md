@@ -1,5 +1,8 @@
 # tsh-rs
 
+[![CI](https://github.com/7a6163/tsh-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/7a6163/tsh-rs/actions/workflows/ci.yml)
+[![Tests](https://github.com/7a6163/tsh-rs/actions/workflows/test.yml/badge.svg)](https://github.com/7a6163/tsh-rs/actions/workflows/test.yml)
+
 A Rust implementation of Tiny Shell (tsh) - a remote shell access tool for secure command execution and file transfers.
 
 ## Features

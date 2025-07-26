@@ -165,13 +165,11 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         cp target/${{ matrix.target }}/release/tsh release/${{ matrix.artifact_name }}/
-        cp target/${{ matrix.target }}/release/tshd release/${{ matrix.artifact_name }}/
 
     - name: Copy binaries (Windows)
       if: matrix.os == 'windows-latest'
       run: |
         cp target/${{ matrix.target }}/release/tsh.exe release/${{ matrix.artifact_name }}/
-        cp target/${{ matrix.target }}/release/tshd.exe release/${{ matrix.artifact_name }}/
 
 
 
@@ -192,7 +190,6 @@ jobs:
       run: |
         cd release/${{ matrix.artifact_name }}
         certutil -hashfile tsh.exe SHA256 > checksums.txt
-        certutil -hashfile tshd.exe SHA256 >> checksums.txt
 
     - name: Create archive (Unix)
       if: matrix.os != 'windows-latest'
