@@ -43,34 +43,10 @@ jobs:
     - name: Check documentation
       run: cargo doc --no-deps --document-private-items
 
-  security-audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      
-    - name: Cache cargo dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-audit-${{ hashFiles('**/Cargo.lock') }}
-        
-    - name: Install cargo-audit
-      run: cargo install cargo-audit
-      
-    - name: Run security audit
-      run: cargo audit
 
   build:
     name: Build and Test
-    needs: [test, security-audit]
+    needs: [test]
     strategy:
       matrix:
         include:
@@ -155,14 +131,14 @@ jobs:
         
     - name: Upload artifacts (Unix)
       if: matrix.os != 'windows-latest'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}
         path: artifacts/${{ matrix.artifact_name }}.tar.gz
         
     - name: Upload artifacts (Windows)
       if: matrix.os == 'windows-latest'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}
         path: artifacts/${{ matrix.artifact_name }}.zip

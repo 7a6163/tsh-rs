@@ -256,15 +256,20 @@ jobs:
         cd release
         7z a ${{ matrix.asset_name }} ${{ matrix.artifact_name }}/
         
+    - name: Get tag name
+      id: get_tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+        
     - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: release/${{ matrix.asset_name }}
-        asset_name: ${{ matrix.asset_name }}
-        asset_content_type: ${{ matrix.asset_content_type }}
+      run: |
+        gh release upload ${{ steps.get_tag.outputs.tag }} release/${{ matrix.asset_name }} --clobber
 
   generate-checksums:
     name: Generate Global Checksums
@@ -291,12 +296,17 @@ jobs:
         cd downloads
         sha256sum * > checksums.txt
         
+    - name: Get tag name
+      id: get_tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+        
     - name: Upload checksums
-      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: downloads/checksums.txt
-        asset_name: checksums.txt
-        asset_content_type: text/plain
+      run: |
+        gh release upload ${{ steps.get_tag.outputs.tag }} downloads/checksums.txt --clobber
