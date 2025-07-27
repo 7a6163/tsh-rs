@@ -35,3 +35,6 @@ Thumbs.db
 # Binary output
 /bin/
 /dist/
+
+# Claude AI local settings
+.claude/
