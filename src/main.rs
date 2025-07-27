@@ -1,11 +1,7 @@
 use clap::{Arg, Command};
 
 // Import our library modules
-use tsh_rs::{error::*};
-
-mod helpers;
-mod client;
-mod server;
+use tsh_rs::{client, error::*, server};
 
 #[tokio::main]
 async fn main() -> TshResult<()> {

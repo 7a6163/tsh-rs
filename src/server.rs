@@ -1,14 +1,14 @@
 use log::{error, info, warn};
-use crate::helpers::NoiseLayerExt;
 use std::process;
 use tokio::time::{sleep, Duration};
 
 #[cfg(unix)]
 use tokio::signal;
 
-use tsh_rs::{
+use crate::{
     constants::*,
     error::*,
+    helpers::NoiseLayerExt,
     noise::{NoiseLayer, NoiseListener},
     pty::Pty,
 };

@@ -1,4 +1,4 @@
-use crate::{error::*, noise::NoiseLayer};
+use crate::{TshError, TshResult, noise::NoiseLayer};
 
 /// Helper trait to extend NoiseLayer with convenience methods
 pub trait NoiseLayerExt {

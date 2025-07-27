@@ -11,8 +11,7 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use tsh_rs::{constants::*, error::*, noise::NoiseLayer};
-use crate::helpers::NoiseLayerExt;
+use crate::{constants::*, error::*, helpers::NoiseLayerExt, noise::NoiseLayer};
 
 /// PSK Authentication using SHA256
 async fn authenticate_with_psk(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
@@ -45,7 +44,7 @@ pub async fn handle_connect_back_mode(port: u16, actions: Vec<&str>, psk: &str) 
     info!("🔐 PSK authentication enabled");
     
     // Create a Noise listener on the client side
-    use tsh_rs::noise::NoiseListener;
+    use crate::noise::NoiseListener;
     
     let listener = NoiseListener::new(&format!("0.0.0.0:{port}"), psk).await?;
     info!("📡 Listening for server connections on port {port}");
