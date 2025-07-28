@@ -12,33 +12,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{constants::*, error::*, helpers::NoiseLayerExt, noise::NoiseLayer};
 
-/// PSK Authentication using SHA256
-#[allow(dead_code)]
-async fn authenticate_with_psk(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
-    use sha2::{Digest, Sha256};
-
-    // Client: send PSK hash
-    let mut hasher = Sha256::new();
-    hasher.update(psk.as_bytes());
-    hasher.update(b"tsh-client-auth");
-    let psk_hash = hasher.finalize();
-
-    layer.write_all(&psk_hash).await?;
-
-    // Wait for server response
-    let mut response = [0u8; 1];
-    layer.read_exact(&mut response).await?;
-
-    let success = response[0] == 1;
-    if success {
-        info!("✅ PSK authentication successful");
-    } else {
-        error!("❌ PSK authentication failed");
-    }
-
-    Ok(success)
-}
-
 pub async fn handle_connect_back_mode(port: u16, actions: Vec<&str>, psk: &str) -> TshResult<()> {
     info!("🚀 Connect-back mode: waiting for server connection on port {port}");
     info!("🔐 PSK authentication enabled");
@@ -175,10 +148,8 @@ async fn interactive_shell(layer: &mut NoiseLayer) -> TshResult<()> {
     layer.write_all(&[OperationMode::RunShell as u8]).await?;
 
     // Enable raw mode for terminal
-    enable_raw_mode()
-        .map_err(|e| TshError::Io(std::io::Error::other(e)))?;
-    execute!(stdout(), EnterAlternateScreen)
-        .map_err(|e| TshError::Io(std::io::Error::other(e)))?;
+    enable_raw_mode().map_err(|e| TshError::Io(std::io::Error::other(e)))?;
+    execute!(stdout(), EnterAlternateScreen).map_err(|e| TshError::Io(std::io::Error::other(e)))?;
 
     let result = shell_loop(layer).await;
 
@@ -246,9 +217,7 @@ async fn read_user_input() -> TshResult<Option<Vec<u8>>> {
     if event::poll(tokio::time::Duration::from_millis(10))
         .map_err(|e| TshError::Io(std::io::Error::other(e)))?
     {
-        match event::read()
-            .map_err(|e| TshError::Io(std::io::Error::other(e)))?
-        {
+        match event::read().map_err(|e| TshError::Io(std::io::Error::other(e)))? {
             Event::Key(key_event) => match key_event.code {
                 KeyCode::Char('c')
                     if key_event
@@ -392,10 +361,8 @@ async fn handle_reverse_shell_client(layer: &mut NoiseLayer) -> TshResult<()> {
     info!("🐚 Starting reverse shell client mode... Press Ctrl+C to exit");
 
     // Enable raw mode for terminal
-    enable_raw_mode()
-        .map_err(|e| TshError::Io(std::io::Error::other(e)))?;
-    execute!(stdout(), EnterAlternateScreen)
-        .map_err(|e| TshError::Io(std::io::Error::other(e)))?;
+    enable_raw_mode().map_err(|e| TshError::Io(std::io::Error::other(e)))?;
+    execute!(stdout(), EnterAlternateScreen).map_err(|e| TshError::Io(std::io::Error::other(e)))?;
 
     let result = shell_loop(layer).await;
 

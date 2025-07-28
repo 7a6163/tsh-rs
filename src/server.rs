@@ -16,35 +16,6 @@ use crate::{
     pty::Pty,
 };
 
-/// PSK Authentication using SHA256
-#[allow(dead_code)]
-async fn authenticate_with_psk(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
-    use sha2::{Digest, Sha256};
-
-    // Server: wait for PSK hash and verify
-    let mut received_hash = [0u8; 32];
-    layer.read_exact(&mut received_hash).await?;
-
-    // Calculate expected hash
-    let mut hasher = Sha256::new();
-    hasher.update(psk.as_bytes());
-    hasher.update(b"tsh-client-auth");
-    let expected_hash = hasher.finalize();
-
-    let is_valid = received_hash == expected_hash.as_slice();
-
-    // Send response
-    layer.write_all(&[if is_valid { 1 } else { 0 }]).await?;
-
-    if is_valid {
-        info!("PSK authentication successful");
-    } else {
-        warn!("PSK authentication failed");
-    }
-
-    Ok(is_valid)
-}
-
 pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
     info!("🚀 Starting tsh server on port {port}");
 

@@ -7,8 +7,6 @@ use tokio::sync::Mutex;
 /// Cross-platform PTY abstraction
 pub struct Pty {
     master: Arc<Mutex<Box<dyn portable_pty::MasterPty + Send>>>,
-    #[allow(dead_code)]
-    writer: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
 }
 
 impl Pty {
@@ -31,14 +29,13 @@ impl Pty {
         let mut cmd = CommandBuilder::new(Self::get_shell_command());
         cmd.env("TERM", "xterm");
 
-        let child = pty_pair
+        let _child = pty_pair
             .slave
             .spawn_command(cmd)
             .map_err(|e| TshError::pty(format!("Failed to spawn shell: {e}")))?;
 
         Ok(Pty {
             master: Arc::new(Mutex::new(pty_pair.master)),
-            writer: Arc::new(Mutex::new(child)),
         })
     }
 
