@@ -1,5 +1,4 @@
 use log::{error, info, warn};
-use std::process;
 use tokio::time::{sleep, Duration};
 
 #[cfg(unix)]
@@ -23,22 +22,53 @@ pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
     info!("📡 Server listening on port {port}");
     info!("🔐 PSK authentication enabled");
 
-    // Setup signal handlers for graceful shutdown
-    setup_signal_handlers().await;
+    // Setup signal handlers outside the loop
+    #[cfg(unix)]
+    let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
+        .expect("Failed to create SIGTERM handler");
+    #[cfg(unix)]
+    let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt())
+        .expect("Failed to create SIGINT handler");
 
     loop {
-        match listener.accept().await {
-            Ok(layer) => {
-                let psk = psk.to_string();
-                tokio::spawn(async move {
-                    if let Err(e) = handle_client_connection(layer, &psk).await {
-                        error!("Client handler error: {e}");
-                    }
-                });
+        let accept_future = listener.accept();
+        
+        #[cfg(unix)]
+        let result = tokio::select! {
+            accept_result = accept_future => Some(accept_result),
+            _ = sigterm.recv() => {
+                info!("🛑 Received SIGTERM, shutting down gracefully");
+                return Ok(());
             }
-            Err(e) => {
-                error!("Failed to accept connection: {e}");
-                sleep(Duration::from_secs(1)).await;
+            _ = sigint.recv() => {
+                info!("🛑 Received SIGINT (Ctrl+C), shutting down gracefully");
+                return Ok(());
+            }
+        };
+        
+        #[cfg(windows)]
+        let result = tokio::select! {
+            accept_result = accept_future => Some(accept_result),
+            _ = signal::ctrl_c() => {
+                info!("🛑 Received Ctrl+C, shutting down gracefully");
+                return Ok(());
+            }
+        };
+        
+        if let Some(accept_result) = result {
+            match accept_result {
+                Ok(layer) => {
+                    let psk = psk.to_string();
+                    tokio::spawn(async move {
+                        if let Err(e) = handle_client_connection(layer, &psk).await {
+                            error!("Client handler error: {e}");
+                        }
+                    });
+                }
+                Err(e) => {
+                    error!("Failed to accept connection: {e}");
+                    sleep(Duration::from_secs(1)).await;
+                }
             }
         }
     }
@@ -547,38 +577,3 @@ async fn handle_reverse_shell(layer: &mut NoiseLayer) -> TshResult<()> {
     Ok(())
 }
 
-#[cfg(unix)]
-async fn setup_signal_handlers() {
-    tokio::spawn(async {
-        let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("Failed to create SIGTERM handler");
-        let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt())
-            .expect("Failed to create SIGINT handler");
-
-        tokio::select! {
-            _ = sigterm.recv() => {
-                info!("🛑 Received SIGTERM, shutting down gracefully");
-                process::exit(0);
-            }
-            _ = sigint.recv() => {
-                info!("🛑 Received SIGINT, shutting down gracefully");
-                process::exit(0);
-            }
-        }
-    });
-}
-
-#[cfg(windows)]
-async fn setup_signal_handlers() {
-    tokio::spawn(async {
-        match signal::ctrl_c().await {
-            Ok(()) => {
-                info!("🛑 Received Ctrl+C, shutting down gracefully");
-                process::exit(0);
-            }
-            Err(err) => {
-                error!("Unable to listen for Ctrl+C: {}", err);
-            }
-        }
-    });
-}

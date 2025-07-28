@@ -1,6 +1,6 @@
 [package]
 name = "tsh-rs"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 authors = ["Zac"]
 description = "Tiny Shell - Secure remote shell access tool with Noise Protocol encryption"

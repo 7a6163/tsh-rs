@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-07-28
+
+**🛠️ Critical Fixes & Code Quality Improvements**
+
+### 🔧 Fixed
+- **Signal handling**: Fixed Ctrl+C not working in server mode - now gracefully shuts down
+- **Cross-platform compatibility**: Fixed Windows test failures with proper temp directory handling
+- **Cross-platform commands**: Fixed shell command execution on Windows vs Unix systems
+- **Memory safety**: Removed all dead code and unused dependencies for cleaner codebase
+
+### 🗑️ Removed
+- All unused `authenticate_with_psk` functions (redundant with Noise Protocol integration)
+- Unused fields in PTY structure (`writer` field)
+- Entire legacy `pel.rs` module (Packet Encryption Layer)
+- Unused cryptographic dependencies: `aes`, `cbc`, `hmac`, `sha1`
+- All remaining `tshd` references from documentation and GitHub workflows
+
+### 🏗️ Improved
+- **Signal handling**: Integrated signal handlers directly into main event loop using `tokio::select!`
+- **Test reliability**: Cross-platform test suite now passes on Windows, Linux, and macOS
+- **Documentation**: Updated all references to reflect unified binary architecture
+- **Security documentation**: Updated cryptographic details to reflect Noise Protocol implementation
+- **Code formatting**: Applied consistent formatting across entire codebase
+
+### 🔐 Security
+- Enhanced server shutdown process (graceful vs forced exit)
+- Improved error handling in network connections
+- Added security hardening flags via `.cargo/config.toml`
+
 ## [1.1.0] - 2025-07-28
 
 **🏗️ Architecture Consolidation & Security Hardening**
