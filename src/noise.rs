@@ -7,7 +7,7 @@ use tokio::time::timeout;
 
 // Noise protocol pattern: XX with PSK authentication layer
 // -> e
-// <- e, ee, s, es  
+// <- e, ee, s, es
 // -> s, se
 // Then: PSK challenge-response
 const NOISE_PATTERN: &str = "Noise_XX_25519_ChaChaPoly_BLAKE2s";
@@ -69,12 +69,12 @@ impl NoiseListener {
 
         // Perform Noise handshake
         let mut layer = perform_handshake_responder(stream, handshake).await?;
-        
+
         // Perform PSK authentication over the encrypted channel
         if !perform_psk_auth_server(&mut layer, &self.psk).await? {
             return Err(TshError::protocol("PSK authentication failed"));
         }
-        
+
         Ok(layer)
     }
 
@@ -111,12 +111,12 @@ impl NoiseLayer {
 
         // Perform Noise handshake
         let mut layer = perform_handshake_initiator(stream, handshake).await?;
-        
+
         // Perform PSK authentication over the encrypted channel
         if !perform_psk_auth_client(&mut layer, psk).await? {
             return Err(TshError::protocol("PSK authentication failed"));
         }
-        
+
         Ok(layer)
     }
 
@@ -294,104 +294,162 @@ pub async fn perform_handshake_responder(
 /// Perform PSK authentication as server (over encrypted channel)
 async fn perform_psk_auth_server(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
     use sha2::{Digest, Sha256};
-    
+
     // Generate challenge
     use rand::Rng;
     let challenge: [u8; 32] = {
         let mut rng = rand::thread_rng();
         rng.gen()
     };
-    
+
     // Send challenge
     let mut buf = vec![0u8; MAX_MESSAGE_SIZE + 16];
-    let len = layer.transport
+    let len = layer
+        .transport
         .write_message(&challenge, &mut buf)
         .map_err(|e| TshError::encryption(format!("Failed to encrypt challenge: {e}")))?;
-    
+
     let len_bytes = (len as u32).to_be_bytes();
-    layer.stream.write_all(&len_bytes).await.map_err(TshError::Io)?;
-    layer.stream.write_all(&buf[..len]).await.map_err(TshError::Io)?;
-    
+    layer
+        .stream
+        .write_all(&len_bytes)
+        .await
+        .map_err(TshError::Io)?;
+    layer
+        .stream
+        .write_all(&buf[..len])
+        .await
+        .map_err(TshError::Io)?;
+
     // Read response
     let mut len_bytes = [0u8; 4];
-    layer.stream.read_exact(&mut len_bytes).await.map_err(TshError::Io)?;
+    layer
+        .stream
+        .read_exact(&mut len_bytes)
+        .await
+        .map_err(TshError::Io)?;
     let msg_len = u32::from_be_bytes(len_bytes) as usize;
-    
+
     let mut encrypted = vec![0u8; msg_len];
-    layer.stream.read_exact(&mut encrypted).await.map_err(TshError::Io)?;
-    
+    layer
+        .stream
+        .read_exact(&mut encrypted)
+        .await
+        .map_err(TshError::Io)?;
+
     let mut response = vec![0u8; 64];
-    let len = layer.transport
+    let len = layer
+        .transport
         .read_message(&encrypted, &mut response)
         .map_err(|e| TshError::encryption(format!("Failed to decrypt response: {e}")))?;
-    
+
     // Verify response
     let mut hasher = Sha256::new();
     hasher.update(&challenge);
     hasher.update(psk.as_bytes());
     let expected = hasher.finalize();
-    
+
     let is_valid = &response[..len] == expected.as_slice();
-    
+
     // Send result
-    let result = if is_valid { b"OK".as_slice() } else { b"FAIL".as_slice() };
-    let len = layer.transport
+    let result = if is_valid {
+        b"OK".as_slice()
+    } else {
+        b"FAIL".as_slice()
+    };
+    let len = layer
+        .transport
         .write_message(result, &mut buf)
         .map_err(|e| TshError::encryption(format!("Failed to encrypt result: {e}")))?;
-    
+
     let len_bytes = (len as u32).to_be_bytes();
-    layer.stream.write_all(&len_bytes).await.map_err(TshError::Io)?;
-    layer.stream.write_all(&buf[..len]).await.map_err(TshError::Io)?;
-    
+    layer
+        .stream
+        .write_all(&len_bytes)
+        .await
+        .map_err(TshError::Io)?;
+    layer
+        .stream
+        .write_all(&buf[..len])
+        .await
+        .map_err(TshError::Io)?;
+
     Ok(is_valid)
 }
 
 /// Perform PSK authentication as client (over encrypted channel)
 async fn perform_psk_auth_client(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
     use sha2::{Digest, Sha256};
-    
+
     // Read challenge
     let mut len_bytes = [0u8; 4];
-    layer.stream.read_exact(&mut len_bytes).await.map_err(TshError::Io)?;
+    layer
+        .stream
+        .read_exact(&mut len_bytes)
+        .await
+        .map_err(TshError::Io)?;
     let msg_len = u32::from_be_bytes(len_bytes) as usize;
-    
+
     let mut encrypted = vec![0u8; msg_len];
-    layer.stream.read_exact(&mut encrypted).await.map_err(TshError::Io)?;
-    
+    layer
+        .stream
+        .read_exact(&mut encrypted)
+        .await
+        .map_err(TshError::Io)?;
+
     let mut challenge = vec![0u8; 64];
-    let len = layer.transport
+    let len = layer
+        .transport
         .read_message(&encrypted, &mut challenge)
         .map_err(|e| TshError::encryption(format!("Failed to decrypt challenge: {e}")))?;
-    
+
     // Generate response
     let mut hasher = Sha256::new();
     hasher.update(&challenge[..len]);
     hasher.update(psk.as_bytes());
     let response = hasher.finalize();
-    
+
     // Send response
     let mut buf = vec![0u8; MAX_MESSAGE_SIZE + 16];
-    let msg_len = layer.transport
+    let msg_len = layer
+        .transport
         .write_message(&response, &mut buf)
         .map_err(|e| TshError::encryption(format!("Failed to encrypt response: {e}")))?;
-    
+
     let len_bytes = (msg_len as u32).to_be_bytes();
-    layer.stream.write_all(&len_bytes).await.map_err(TshError::Io)?;
-    layer.stream.write_all(&buf[..msg_len]).await.map_err(TshError::Io)?;
-    
+    layer
+        .stream
+        .write_all(&len_bytes)
+        .await
+        .map_err(TshError::Io)?;
+    layer
+        .stream
+        .write_all(&buf[..msg_len])
+        .await
+        .map_err(TshError::Io)?;
+
     // Read result
     let mut len_bytes = [0u8; 4];
-    layer.stream.read_exact(&mut len_bytes).await.map_err(TshError::Io)?;
+    layer
+        .stream
+        .read_exact(&mut len_bytes)
+        .await
+        .map_err(TshError::Io)?;
     let msg_len = u32::from_be_bytes(len_bytes) as usize;
-    
+
     let mut encrypted = vec![0u8; msg_len];
-    layer.stream.read_exact(&mut encrypted).await.map_err(TshError::Io)?;
-    
+    layer
+        .stream
+        .read_exact(&mut encrypted)
+        .await
+        .map_err(TshError::Io)?;
+
     let mut result = vec![0u8; 16];
-    let len = layer.transport
+    let len = layer
+        .transport
         .read_message(&encrypted, &mut result)
         .map_err(|e| TshError::encryption(format!("Failed to decrypt result: {e}")))?;
-    
+
     Ok(&result[..len] == b"OK")
 }
 

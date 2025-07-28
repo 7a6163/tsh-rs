@@ -87,19 +87,19 @@ async fn main() -> TshResult<()> {
                 .unwrap()
                 .parse()
                 .map_err(|_| TshError::protocol("Invalid port number".to_string()))?;
-            
+
             let psk = sub_matches.get_one::<String>("psk").unwrap();
-            
+
             println!("🚀 tsh-rs v1.0.0 - Server Mode");
             println!("🔐 PSK: {}***", &psk[..4.min(psk.len())]);
-            
+
             if let Some(host) = sub_matches.get_one::<String>("connect-back") {
                 let delay: u64 = sub_matches
                     .get_one::<String>("delay")
                     .unwrap()
                     .parse()
                     .map_err(|_| TshError::protocol("Invalid delay".to_string()))?;
-                
+
                 println!("📡 Connect-back mode: {host} every {delay}s");
                 run_connect_back_mode(host, port, delay, psk).await
             } else {
@@ -113,18 +113,18 @@ async fn main() -> TshResult<()> {
                 .unwrap()
                 .parse()
                 .map_err(|_| TshError::protocol("Invalid port number".to_string()))?;
-            
+
             let psk = sub_matches.get_one::<String>("psk").unwrap();
             let host = sub_matches.get_one::<String>("host").unwrap();
-            
+
             let actions: Vec<&str> = sub_matches
                 .get_many::<String>("action")
                 .map(|vals| vals.map(|s| s.as_str()).collect())
                 .unwrap_or_default();
-            
+
             println!("🚀 tsh-rs v1.0.0 - Client Mode");
             println!("🔐 PSK: {}***", &psk[..4.min(psk.len())]);
-            
+
             if host == "cb" {
                 println!("📡 Connect-back mode on port {port}");
                 run_connect_back_client(port, actions, psk).await
@@ -152,4 +152,3 @@ async fn run_direct_client(host: &str, port: u16, actions: Vec<&str>, psk: &str)
 async fn run_connect_back_client(port: u16, actions: Vec<&str>, psk: &str) -> TshResult<()> {
     client::handle_connect_back_mode(port, actions, psk).await
 }
-
