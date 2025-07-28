@@ -11,7 +11,6 @@ linux:
 	@mkdir -p build/linux-x64
 	RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target x86_64-unknown-linux-gnu
 	cp target/x86_64-unknown-linux-gnu/release/tsh build/linux-x64/
-	cp target/x86_64-unknown-linux-gnu/release/tshd build/linux-x64/
 
 # Build for Windows x64
 .PHONY: windows
@@ -20,7 +19,6 @@ windows:
 	@mkdir -p build/windows-x64
 	cargo build --release --target x86_64-pc-windows-gnu
 	cp target/x86_64-pc-windows-gnu/release/tsh.exe build/windows-x64/
-	cp target/x86_64-pc-windows-gnu/release/tshd.exe build/windows-x64/
 
 # Build for macOS (both x64 and ARM64)
 .PHONY: macos
@@ -32,7 +30,6 @@ macos-x64:
 	@mkdir -p build/macos-x64
 	cargo build --release --target x86_64-apple-darwin
 	cp target/x86_64-apple-darwin/release/tsh build/macos-x64/
-	cp target/x86_64-apple-darwin/release/tshd build/macos-x64/
 
 .PHONY: macos-arm64
 macos-arm64:
@@ -40,7 +37,6 @@ macos-arm64:
 	@mkdir -p build/macos-arm64
 	cargo build --release --target aarch64-apple-darwin
 	cp target/aarch64-apple-darwin/release/tsh build/macos-arm64/
-	cp target/aarch64-apple-darwin/release/tshd build/macos-arm64/
 
 # Build for custom GOOS/GOARCH (use environment variables)
 .PHONY: unix
@@ -50,7 +46,6 @@ unix:
 	@mkdir -p build/$(TARGET)
 	RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target $(TARGET)
 	cp target/$(TARGET)/release/tsh build/$(TARGET)/ 2>/dev/null || cp target/$(TARGET)/release/tsh.exe build/$(TARGET)/ 2>/dev/null || true
-	cp target/$(TARGET)/release/tshd build/$(TARGET)/ 2>/dev/null || cp target/$(TARGET)/release/tshd.exe build/$(TARGET)/ 2>/dev/null || true
 
 # Development build (debug mode)
 .PHONY: dev
@@ -72,7 +67,7 @@ run-client:
 # Run server
 .PHONY: run-server
 run-server:
-	cargo run --bin tshd -- $(ARGS)
+	cargo run --bin tsh -- server $(ARGS)
 
 # Format code
 .PHONY: fmt

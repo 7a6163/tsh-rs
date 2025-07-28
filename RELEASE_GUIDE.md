@@ -59,8 +59,7 @@ The release workflow automatically builds binaries for:
 ## 📁 Release Contents
 
 Each release archive contains:
-- `tsh` / `tsh.exe` - Client binary
-- `tshd` / `tshd.exe` - Server binary
+- `tsh` / `tsh.exe` - Unified binary (both client and server modes)
 - `README.md` - Project documentation
 - `demo.md` - Usage examples
 - `Makefile` - Build instructions

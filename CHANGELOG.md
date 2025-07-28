@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed shared secret authentication (replaced with public key cryptography)
 - Updated command line interface (removed `-s/--secret` flags)
 - Changed file transfer syntax (get:source:dest, put:source:dest)
-- Legacy versions preserved as `tsh_legacy.rs` and `tshd_legacy.rs`
+- Consolidated to single unified binary (tsh with server/client subcommands)
 
 ### 🏗️ Technical Details
 - Cross-platform signal handling improvements (Unix/Windows)

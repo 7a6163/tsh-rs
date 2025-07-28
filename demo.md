@@ -17,16 +17,16 @@ make dev
 ### 2. Run the server
 ```bash
 # Listen mode - wait for connections
-./target/release/tshd -s mysecret -p 8080
+./target/release/tsh server --psk mysecret --port 8080
 
 # Or run directly with cargo
-cargo run --bin tshd -- -s mysecret -p 8080
+cargo run --bin tsh -- server --psk mysecret --port 8080
 ```
 
 ### 3. Run the client
 ```bash
 # Connect to server
-./target/release/tsh -s mysecret -p 8080 127.0.0.1
+./target/release/tsh client --psk mysecret 127.0.0.1:8080
 
 # Or run directly with cargo
 cargo run --bin tsh -- -s mysecret -p 8080 127.0.0.1
@@ -93,7 +93,7 @@ pub enum TshError {
 ./tsh -s secret -p 8080 cb
 
 # Server connects back to client
-./tshd -s secret -c 192.168.1.100 -p 8080 -d 5
+./tsh server --psk secret --connect-back 192.168.1.100 --port 8080 --delay 5
 ```
 
 ## Cross-Platform Builds

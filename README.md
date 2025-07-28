@@ -25,8 +25,9 @@ A Rust implementation of Tiny Shell (tsh) - a remote shell access tool for secur
 
 ## Components
 
-- **`tsh`** - Client application for connecting to remote systems
-- **`tshd`** - Server daemon that provides shell access
+- **`tsh`** - Unified binary with both client and server modes
+  - `tsh server` - Server daemon mode that provides shell access
+  - `tsh client` - Client mode for connecting to remote systems
 
 ## Building
 
@@ -66,46 +67,48 @@ See `make help` for all available commands.
 
 ## Usage
 
-### Server (tshd)
+### Server Mode
 
 ```bash
 # Listen mode - wait for connections on port 1234
-./tshd -p 1234
+./tsh server --psk your-secret-key --port 1234
 
 # Connect-back mode - connect to client every 5 seconds
-./tshd -c 192.168.1.100 -p 1234 -d 5
+./tsh server --psk your-secret-key --connect-back 192.168.1.100 --port 1234 --delay 5
 ```
 
-### Client (tsh)
+### Client Mode
 
 ```bash
 # Interactive shell
-./tsh -p 1234 192.168.1.100
+./tsh client --psk your-secret-key 192.168.1.100:1234
 
 # Connect-back mode (wait for server)
-./tsh -p 1234 cb
+./tsh client --psk your-secret-key cb --port 1234
 
 # Download file
-./tsh 192.168.1.100 get:/remote/file.txt:./local/
+./tsh client --psk your-secret-key 192.168.1.100:1234 get:/remote/file.txt:./local/
 
 # Upload file
-./tsh 192.168.1.100 put:./local/file.txt:/remote/
+./tsh client --psk your-secret-key 192.168.1.100:1234 put:./local/file.txt:/remote/
 
 # Execute command
-./tsh 192.168.1.100 "ls -la"
+./tsh client --psk your-secret-key 192.168.1.100:1234 "ls -la"
 ```
 
 ## Command Line Options
 
-### tsh (Client)
+### Server Mode (`tsh server`)
+- `--psk <PSK>` - Pre-shared key for authentication (required)
+- `-p, --port <PORT>` - Port number (default: 1234)
+- `-c, --connect-back <HOST>` - Connect back to client host
+- `-d, --delay <SECONDS>` - Connect back delay in seconds (default: 5)
+
+### Client Mode (`tsh client`)
+- `--psk <PSK>` - Pre-shared key for authentication (required)
 - `-p, --port <PORT>` - Port number (default: 1234)
 - `<HOST>` - Target hostname or "cb" for connect-back mode
 - `[ACTION]` - Action to perform (get:remote:local, put:local:remote, or command)
-
-### tshd (Server)
-- `-p, --port <PORT>` - Port number (default: 1234)
-- `-c, --connect-back <HOST>` - Connect back to host (client mode)
-- `-d, --delay <SECONDS>` - Connect back delay in seconds (default: 5)
 
 ## Security Features
 

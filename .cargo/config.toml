@@ -1,0 +1,29 @@
+# Security hardening configuration
+[build]
+rustflags = [
+    "-C", "relocation-model=pie",           # Position Independent Executable
+    "-C", "control-flow-guard=yes",         # Control Flow Guard (Windows)
+    "-C", "force-frame-pointers=yes",       # Always use frame pointers for better debugging
+]
+
+# Target-specific flags for additional hardening
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "relocation-model=pie",
+    "-C", "link-arg=-Wl,-z,relro,-z,now",   # Full RELRO
+    "-C", "link-arg=-Wl,-z,noexecstack",    # Non-executable stack
+    "-C", "force-frame-pointers=yes",
+]
+
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+    "-C", "relocation-model=pie",
+    "-C", "control-flow-guard=yes",
+    "-C", "force-frame-pointers=yes",
+]
+
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "relocation-model=pie",
+    "-C", "force-frame-pointers=yes",
+]
