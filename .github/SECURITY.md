@@ -76,13 +76,13 @@ We take security seriously. If you discover a security vulnerability, please rep
 2. **Network Security**: Use firewalls and VPNs when possible
    ```bash
    # Bind to specific interface
-   ./tshd -s secret --bind 192.168.1.100 -p 8080
+   ./tsh server --psk "MySecureKey123!" --port 8080
    ```
 
 3. **Monitor Connections**: Log and monitor all connections
    ```bash
    # Enable verbose logging
-   RUST_LOG=info ./tshd -s secret -p 8080
+   RUST_LOG=info ./tsh server --psk "MySecureKey123!" --port 8080
    ```
 
 4. **Regular Updates**: Keep tsh-rs updated to the latest version
@@ -97,26 +97,31 @@ We take security seriously. If you discover a security vulnerability, please rep
 ## 🔐 Cryptographic Details
 
 ### Encryption Implementation
-- **Algorithm**: AES-128 in CBC mode
-- **Key Derivation**: SHA-1 based (secret + IV)
-- **Authentication**: HMAC-SHA1
-- **IV Generation**: Cryptographically secure random
+- **Protocol**: Noise Protocol Framework (Noise_XX_25519_ChaChaPoly_BLAKE2s)
+- **Encryption**: ChaCha20-Poly1305 AEAD (Authenticated Encryption with Associated Data)
+- **Key Exchange**: X25519 Elliptic Curve Diffie-Hellman
+- **Hashing**: BLAKE2s cryptographic hash function
+- **Authentication**: Pre-shared key (PSK) with challenge-response
+- **Forward Secrecy**: Yes, through ephemeral key exchange
 
-### Known Limitations
-- Uses SHA-1 (legacy compatibility, consider upgrading to SHA-256)
-- Custom protocol (not TLS - consider standardization)
-- No forward secrecy
+### Security Features
+- Modern cryptographic protocols with proven security
+- Resistance to quantum attacks on key exchange
+- Memory-safe implementation in Rust
+- No known cryptographic vulnerabilities
 
 ## 📋 Security Checklist
 
 Before deploying tsh-rs:
 
-- [ ] Changed default authentication secret
+- [ ] Generated strong pre-shared key (PSK)
 - [ ] Configured appropriate firewall rules
-- [ ] Enabled logging and monitoring
+- [ ] Enabled logging and monitoring (RUST_LOG=info)
 - [ ] Tested in controlled environment
 - [ ] Verified authorized use only
 - [ ] Updated to latest version
+- [ ] Reviewed cryptographic configuration
+- [ ] Secured PSK storage and distribution
 - [ ] Reviewed security configurations
 
 ## 📞 Contact

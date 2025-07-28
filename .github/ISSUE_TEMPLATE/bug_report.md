@@ -37,8 +37,8 @@ If applicable, add screenshots or log output to help explain your problem.
 - **Rust Version**: [e.g., 1.70.0] (if building from source)
 
 ## 🔧 Configuration
-- **Server Command**: `./tshd [args]`
-- **Client Command**: `./tsh [args]`
+- **Server Command**: `./tsh server --psk [key] [args]`
+- **Client Command**: `./tsh client --psk [key] [args]`
 - **Network Setup**: [e.g., local, VPN, firewall details]
 
 ## 🤔 Additional Context

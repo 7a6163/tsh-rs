@@ -24,9 +24,9 @@ Have you considered any alternative solutions or workarounds?
 ### 📋 Implementation Ideas
 If you have ideas about how this could be implemented, please share them:
 
-- [ ] Changes to client (tsh)
-- [ ] Changes to server (tshd)  
-- [ ] Changes to protocol (PEL)
+- [ ] Changes to client mode (tsh client)
+- [ ] Changes to server mode (tsh server)  
+- [ ] Changes to protocol (Noise Protocol)
 - [ ] New dependencies required
 - [ ] Breaking changes to existing API
 

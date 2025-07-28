@@ -73,10 +73,10 @@ jobs:
 
         1. Download the appropriate binary for your platform
         2. Extract the archive
-        3. Make the binaries executable (Unix/Linux/macOS): `chmod +x tsh tshd`
-        4. Copy binaries to your PATH (e.g., `/usr/local/bin` or `~/.local/bin`)
-        5. Run the server: `tshd -p 1234`
-        6. Connect with client: `tsh -p 1234 server_ip`
+        3. Make the binary executable (Unix/Linux/macOS): `chmod +x tsh`
+        4. Copy binary to your PATH (e.g., `/usr/local/bin` or `~/.local/bin`)
+        5. Run the server: `tsh server --psk your-secret-key --port 1234`
+        6. Connect with client: `tsh client --psk your-secret-key server_ip:1234`
 
         ### 🆕 What's New
 

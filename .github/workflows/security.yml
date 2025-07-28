@@ -108,12 +108,8 @@ jobs:
       run: |
         echo "=== tsh binary security features ==="
         checksec --file=target/release/tsh
-        echo ""
-        echo "=== tshd binary security features ==="
-        checksec --file=target/release/tshd
 
     - name: Check for hardening flags
       run: |
         echo "=== Checking security flags ==="
         readelf -d target/release/tsh | grep -E "(RUNPATH|RPATH|BIND_NOW|PIE)"
-        readelf -d target/release/tshd | grep -E "(RUNPATH|RPATH|BIND_NOW|PIE)"

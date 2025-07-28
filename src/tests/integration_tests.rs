@@ -6,7 +6,11 @@ use tokio::process::Command;
 #[tokio::test]
 async fn test_command_execution_integration() {
     let psk = "test_cmd_integration";
-    let test_command = "echo 'integration test'";
+    let test_command = if cfg!(windows) {
+        "echo integration test"
+    } else {
+        "echo 'integration test'"
+    };
 
     // Start listener
     let listener = NoiseListener::new("127.0.0.1:0", psk).await.unwrap();
@@ -27,13 +31,21 @@ async fn test_command_execution_integration() {
         let cmd_end = buffer[1..n].iter().position(|&b| b == 0).unwrap() + 1;
         let command = String::from_utf8_lossy(&buffer[1..cmd_end]);
 
-        // Execute command
-        let output = Command::new("/bin/sh")
-            .arg("-c")
-            .arg(&*command)
-            .output()
-            .await
-            .unwrap();
+        // Execute command cross-platform
+        let output = if cfg!(windows) {
+            Command::new("cmd")
+                .args(["/C", &command])
+                .output()
+                .await
+                .unwrap()
+        } else {
+            Command::new("/bin/sh")
+                .arg("-c")
+                .arg(&*command)
+                .output()
+                .await
+                .unwrap()
+        };
 
         // Send response like server does
         let exit_code = if output.status.success() { 0u8 } else { 1u8 };
@@ -106,10 +118,11 @@ async fn test_command_execution_integration() {
 async fn test_file_operations_integration() {
     let psk = "test_file_integration";
 
-    // Create test file
-    let test_file_path = "/tmp/tsh_test_integration.txt";
+    // Create test file in platform-appropriate temp directory
+    let temp_dir = std::env::temp_dir();
+    let test_file_path = temp_dir.join("tsh_test_integration.txt");
     let test_content = "This is integration test content";
-    tokio::fs::write(test_file_path, test_content)
+    tokio::fs::write(&test_file_path, test_content)
         .await
         .unwrap();
 
@@ -156,7 +169,7 @@ async fn test_file_operations_integration() {
 
         let mut data = Vec::new();
         data.push(OperationMode::GetFile as u8);
-        data.extend_from_slice(test_file_path.as_bytes());
+        data.extend_from_slice(test_file_path.to_string_lossy().as_bytes());
         data.push(0);
         client.write_all(&data).await.unwrap();
 
@@ -178,7 +191,7 @@ async fn test_file_operations_integration() {
     }
 
     // Clean up
-    let _ = tokio::fs::remove_file(test_file_path).await;
+    let _ = tokio::fs::remove_file(&test_file_path).await;
 }
 
 #[tokio::test]
