@@ -9,11 +9,11 @@ use std::io::{stdout, Write};
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
 
 use crate::{constants::*, error::*, helpers::NoiseLayerExt, noise::NoiseLayer};
 
 /// PSK Authentication using SHA256
+#[allow(dead_code)]
 async fn authenticate_with_psk(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
     use sha2::{Digest, Sha256};
 
@@ -176,9 +176,9 @@ async fn interactive_shell(layer: &mut NoiseLayer) -> TshResult<()> {
 
     // Enable raw mode for terminal
     enable_raw_mode()
-        .map_err(|e| TshError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| TshError::Io(std::io::Error::other(e)))?;
     execute!(stdout(), EnterAlternateScreen)
-        .map_err(|e| TshError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| TshError::Io(std::io::Error::other(e)))?;
 
     let result = shell_loop(layer).await;
 
@@ -244,10 +244,10 @@ async fn read_server_data(layer: &mut NoiseLayer) -> TshResult<Vec<u8>> {
 
 async fn read_user_input() -> TshResult<Option<Vec<u8>>> {
     if event::poll(tokio::time::Duration::from_millis(10))
-        .map_err(|e| TshError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?
+        .map_err(|e| TshError::Io(std::io::Error::other(e)))?
     {
         match event::read()
-            .map_err(|e| TshError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?
+            .map_err(|e| TshError::Io(std::io::Error::other(e)))?
         {
             Event::Key(key_event) => match key_event.code {
                 KeyCode::Char('c')
@@ -255,7 +255,7 @@ async fn read_user_input() -> TshResult<Option<Vec<u8>>> {
                         .modifiers
                         .contains(crossterm::event::KeyModifiers::CONTROL) =>
                 {
-                    return Ok(None);
+                    Ok(None)
                 }
                 KeyCode::Char(c) => Ok(Some(vec![c as u8])),
                 KeyCode::Enter => Ok(Some(vec![b'\r', b'\n'])),
@@ -393,9 +393,9 @@ async fn handle_reverse_shell_client(layer: &mut NoiseLayer) -> TshResult<()> {
 
     // Enable raw mode for terminal
     enable_raw_mode()
-        .map_err(|e| TshError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| TshError::Io(std::io::Error::other(e)))?;
     execute!(stdout(), EnterAlternateScreen)
-        .map_err(|e| TshError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| TshError::Io(std::io::Error::other(e)))?;
 
     let result = shell_loop(layer).await;
 

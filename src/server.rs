@@ -5,6 +5,9 @@ use tokio::time::{sleep, Duration};
 #[cfg(unix)]
 use tokio::signal;
 
+#[cfg(windows)]
+use tokio::signal;
+
 use crate::{
     constants::*,
     error::*,
@@ -14,6 +17,7 @@ use crate::{
 };
 
 /// PSK Authentication using SHA256
+#[allow(dead_code)]
 async fn authenticate_with_psk(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
     use sha2::{Digest, Sha256};
 
@@ -596,10 +600,14 @@ async fn setup_signal_handlers() {
 #[cfg(windows)]
 async fn setup_signal_handlers() {
     tokio::spawn(async {
-        if let Ok(mut ctrl_c) = signal::windows::ctrl_c() {
-            ctrl_c.recv().await;
-            info!("🛑 Received Ctrl+C, shutting down gracefully");
-            process::exit(0);
+        match signal::ctrl_c().await {
+            Ok(()) => {
+                info!("🛑 Received Ctrl+C, shutting down gracefully");
+                process::exit(0);
+            }
+            Err(err) => {
+                error!("Unable to listen for Ctrl+C: {}", err);
+            }
         }
     });
 }

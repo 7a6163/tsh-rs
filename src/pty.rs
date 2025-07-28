@@ -7,6 +7,7 @@ use tokio::sync::Mutex;
 /// Cross-platform PTY abstraction
 pub struct Pty {
     master: Arc<Mutex<Box<dyn portable_pty::MasterPty + Send>>>,
+    #[allow(dead_code)]
     writer: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
 }
 

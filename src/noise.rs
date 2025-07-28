@@ -345,7 +345,7 @@ async fn perform_psk_auth_server(layer: &mut NoiseLayer, psk: &str) -> TshResult
 
     // Verify response
     let mut hasher = Sha256::new();
-    hasher.update(&challenge);
+    hasher.update(challenge);
     hasher.update(psk.as_bytes());
     let expected = hasher.finalize();
 

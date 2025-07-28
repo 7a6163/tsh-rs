@@ -1,6 +1,7 @@
 use crate::{noise::NoiseLayer, TshError, TshResult};
 
 /// Helper trait to extend NoiseLayer with convenience methods
+#[allow(async_fn_in_trait)]
 pub trait NoiseLayerExt {
     async fn write_all(&mut self, data: &[u8]) -> TshResult<()>;
     async fn read_exact(&mut self, buf: &mut [u8]) -> TshResult<()>;

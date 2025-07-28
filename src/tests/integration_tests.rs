@@ -1,9 +1,6 @@
 use crate::constants::OperationMode;
-use crate::error::TshResult;
 use crate::helpers::NoiseLayerExt;
 use crate::noise::{NoiseLayer, NoiseListener};
-use std::process::Stdio;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
 #[tokio::test]
@@ -218,7 +215,7 @@ async fn test_multiple_connections() {
     for i in 0..3 {
         let addr_str = addr.to_string();
         let psk_clone = psk.to_string();
-        let test_data = format!("test data {}", i);
+        let test_data = format!("test data {i}");
 
         let client_task = tokio::spawn(async move {
             let mut client = NoiseLayer::connect(&addr_str, &psk_clone).await.unwrap();
@@ -250,7 +247,7 @@ async fn test_multiple_connections() {
     assert_eq!(results.len(), 3);
 
     for (i, result) in results.iter().enumerate() {
-        assert_eq!(result, &format!("test data {}", i));
+        assert_eq!(result, &format!("test data {i}"));
     }
 }
 

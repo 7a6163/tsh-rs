@@ -1,6 +1,4 @@
-use crate::error::TshResult;
 use crate::noise::{NoiseLayer, NoiseListener};
-use tokio::net::TcpStream;
 
 #[tokio::test]
 async fn test_noise_key_generation() {
@@ -45,7 +43,7 @@ async fn test_noise_data_transmission() {
     let addr = listener.local_addr().unwrap();
 
     // Spawn server task
-    let test_data_clone = test_data.to_vec();
+    let _test_data_clone = test_data.to_vec();
     let server_task = tokio::spawn(async move {
         let mut layer = listener.accept().await.unwrap();
 

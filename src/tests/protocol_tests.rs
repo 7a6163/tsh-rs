@@ -1,5 +1,4 @@
 use crate::constants::OperationMode;
-use crate::error::TshResult;
 use crate::helpers::NoiseLayerExt;
 use crate::noise::{NoiseLayer, NoiseListener};
 
@@ -175,12 +174,10 @@ async fn test_shell_mode_protocol() {
 
         // Read the operation mode
         let mut buffer = vec![0u8; 1024];
-        let n = layer.read(&mut buffer).await.unwrap();
+        let _n = layer.read(&mut buffer).await.unwrap();
 
         // Parse the mode (should be just the mode byte for shell)
-        let mode = OperationMode::from(buffer[0]);
-
-        mode
+        OperationMode::from(buffer[0])
     });
 
     // Give server time to start
