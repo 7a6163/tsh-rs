@@ -32,7 +32,7 @@ pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
 
     loop {
         let accept_future = listener.accept();
-        
+
         #[cfg(unix)]
         let result = tokio::select! {
             accept_result = accept_future => Some(accept_result),
@@ -45,7 +45,7 @@ pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
                 return Ok(());
             }
         };
-        
+
         #[cfg(windows)]
         let result = tokio::select! {
             accept_result = accept_future => Some(accept_result),
@@ -54,7 +54,7 @@ pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
                 return Ok(());
             }
         };
-        
+
         if let Some(accept_result) = result {
             match accept_result {
                 Ok(layer) => {
@@ -576,4 +576,3 @@ async fn handle_reverse_shell(layer: &mut NoiseLayer) -> TshResult<()> {
     info!("✅ Reverse shell session ended");
     Ok(())
 }
-
