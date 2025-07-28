@@ -8,7 +8,7 @@ async fn main() -> TshResult<()> {
     env_logger::init();
 
     let matches = Command::new("tsh")
-        .version("1.0.0")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("Zac")
         .about("Tiny Shell - Secure remote shell access tool with Noise Protocol + PSK")
         .subcommand_required(true)
@@ -90,7 +90,7 @@ async fn main() -> TshResult<()> {
 
             let psk = sub_matches.get_one::<String>("psk").unwrap();
 
-            println!("🚀 tsh-rs v1.0.0 - Server Mode");
+            println!("🚀 tsh-rs v{} - Server Mode", env!("CARGO_PKG_VERSION"));
             println!("🔐 PSK: {}***", &psk[..4.min(psk.len())]);
 
             if let Some(host) = sub_matches.get_one::<String>("connect-back") {
@@ -122,7 +122,7 @@ async fn main() -> TshResult<()> {
                 .map(|vals| vals.map(|s| s.as_str()).collect())
                 .unwrap_or_default();
 
-            println!("🚀 tsh-rs v1.0.0 - Client Mode");
+            println!("🚀 tsh-rs v{} - Client Mode", env!("CARGO_PKG_VERSION"));
             println!("🔐 PSK: {}***", &psk[..4.min(psk.len())]);
 
             if host == "cb" {

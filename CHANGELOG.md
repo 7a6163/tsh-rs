@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-07-28
+
+**🏗️ Architecture Consolidation & Security Hardening**
+
+### 🔧 Added
+- Single unified binary architecture (`tsh` with `server`/`client` subcommands)
+- Security hardening compilation flags (PIE, RELRO, stack protection)
+- Cross-platform test compatibility (Windows, Linux, macOS)
+- Comprehensive documentation updates
+- Pre-shared key (PSK) authentication with challenge-response
+
+### 🗑️ Removed
+- Separate `tshd` binary (consolidated into `tsh server`)
+- Dead code cleanup (unused authentication functions, PTY fields)
+- Removed legacy dependencies (aes, cbc, hmac, sha1)
+- Removed entire PEL (Packet Encryption Layer) module
+
+### 🔧 Changed
+- **BREAKING**: Command line interface now uses subcommands
+  - Old: `tshd -p 1234` → New: `tsh server --psk key --port 1234`
+  - Old: `tsh -p 1234 host` → New: `tsh client --psk key host:1234`
+- Enhanced security configuration via `.cargo/config.toml`
+- Updated all documentation and GitHub templates
+- Improved error messages and cross-platform compatibility
+
+### 🔒 Security
+- Added compilation security hardening flags
+- Improved binary security analysis results
+- Enhanced PSK-based authentication over encrypted channel
+- Removed potential attack surface by consolidating binaries
+
+### 🐛 Fixed
+- Windows compatibility issues in integration tests
+- Cross-platform shell command execution
+- Temporary file handling across different operating systems
+- All clippy warnings and formatting issues
+
+---
+
 ## [1.0.0] - 2025-07-26
 
 **🚀 Major Release - Noise Protocol Integration**
