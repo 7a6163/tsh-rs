@@ -10,7 +10,9 @@ use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::{constants::*, error::*, helpers::NoiseLayerExt, noise::NoiseLayer};
+use crate::{
+    constants::*, error::*, helpers::NoiseLayerExt, noise::NoiseLayer, terminal::TerminalHandler,
+};
 
 pub async fn handle_connect_back_mode(port: u16, actions: Vec<&str>, psk: &str) -> TshResult<()> {
     info!("🚀 Connect-back mode: waiting for server connection on port {port}");
@@ -142,20 +144,18 @@ async fn execute_action(layer: &mut NoiseLayer, actions: Vec<&str>) -> TshResult
 }
 
 async fn interactive_shell(layer: &mut NoiseLayer) -> TshResult<()> {
-    info!("🐚 Starting interactive shell... Press Ctrl+C to exit");
+    info!("🐚 Starting enhanced interactive shell... Press Ctrl+C to exit");
 
     // Send mode byte in a single message
     layer.write_all(&[OperationMode::RunShell as u8]).await?;
 
     // Enable raw mode for terminal
     enable_raw_mode().map_err(|e| TshError::Io(std::io::Error::other(e)))?;
-    execute!(stdout(), EnterAlternateScreen).map_err(|e| TshError::Io(std::io::Error::other(e)))?;
 
-    let result = shell_loop(layer).await;
+    let result = enhanced_shell_loop(layer).await;
 
     // Restore terminal
     let _ = disable_raw_mode();
-    let _ = execute!(stdout(), LeaveAlternateScreen);
 
     result
 }
@@ -206,6 +206,57 @@ async fn shell_loop(layer: &mut NoiseLayer) -> TshResult<()> {
     Ok(())
 }
 
+async fn enhanced_shell_loop(layer: &mut NoiseLayer) -> TshResult<()> {
+    let mut terminal = TerminalHandler::new()?;
+
+    // Display initial prompt
+    terminal.display_prompt()?;
+
+    loop {
+        tokio::select! {
+            // Read from server
+            server_data = read_server_data(layer) => {
+                match server_data {
+                    Ok(data) => {
+                        if data.is_empty() {
+                            info!("🔚 Server disconnected");
+                            break;
+                        }
+                        terminal.handle_server_data(&data)?;
+                        terminal.display_prompt()?;
+                    }
+                    Err(e) => {
+                        error!("Server read error: {e}");
+                        break;
+                    }
+                }
+            }
+
+            // Read from user input
+            user_input = read_enhanced_user_input(&mut terminal) => {
+                match user_input {
+                    Ok(Some(data)) => {
+                        if let Err(e) = layer.write_all(&data).await {
+                            error!("Failed to send to server: {e}");
+                            break;
+                        }
+                    }
+                    Ok(None) => {
+                        info!("👋 Exiting...");
+                        break;
+                    }
+                    Err(e) => {
+                        error!("Input error: {e}");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 async fn read_server_data(layer: &mut NoiseLayer) -> TshResult<Vec<u8>> {
     let mut buf = vec![0u8; 8192];
     let n = layer.read(&mut buf).await?;
@@ -232,6 +283,24 @@ async fn read_user_input() -> TshResult<Option<Vec<u8>>> {
                 KeyCode::Tab => Ok(Some(vec![b'\t'])),
                 _ => Ok(Some(vec![])),
             },
+            _ => Ok(Some(vec![])),
+        }
+    } else {
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        Ok(Some(vec![]))
+    }
+}
+
+async fn read_enhanced_user_input(terminal: &mut TerminalHandler) -> TshResult<Option<Vec<u8>>> {
+    if event::poll(tokio::time::Duration::from_millis(10))
+        .map_err(|e| TshError::Io(std::io::Error::other(e)))?
+    {
+        match event::read().map_err(|e| TshError::Io(std::io::Error::other(e)))? {
+            Event::Key(key_event) => terminal.handle_key_event(key_event).await,
+            Event::Resize(_, _) => {
+                terminal.handle_resize()?;
+                Ok(Some(vec![]))
+            }
             _ => Ok(Some(vec![])),
         }
     } else {

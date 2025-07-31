@@ -5,6 +5,7 @@ pub mod helpers;
 pub mod noise;
 pub mod pty;
 pub mod server;
+pub mod terminal;
 
 pub use error::{TshError, TshResult};
 
