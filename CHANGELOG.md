@@ -30,9 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Code formatting**: Applied consistent formatting across entire codebase
 
 ### 🔐 Security
+- **Fixed vulnerability**: Updated `slab` dependency from 0.4.10 to 0.4.11 (RUSTSEC-2025-0047)
 - Enhanced server shutdown process (graceful vs forced exit)
 - Improved error handling in network connections
 - Added security hardening flags via `.cargo/config.toml`
+
+### ✨ Enhanced
+- **Interactive shell improvements**: Added command history, line editing, and cursor navigation
+- Terminal handling with colored prompts and keyboard shortcuts (Ctrl+C, Ctrl+L, arrow keys)
+- Better user experience with 1000-command history and in-line editing capabilities
 
 ## [1.1.0] - 2025-07-28
 
