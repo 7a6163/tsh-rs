@@ -266,7 +266,7 @@ async fn download_file(
         .file_name()
         .unwrap_or(std::ffi::OsStr::new("downloaded_file"))
         .to_string_lossy();
-    let local_path = format!("{local_dir}/{remote_filename}");
+    let local_path = Path::new(local_dir).join(remote_filename.as_ref());
     let mut local_file = File::create(&local_path).await?;
 
     // Create progress bar
@@ -296,7 +296,7 @@ async fn download_file(
     }
 
     pb.finish_with_message("✅ Download complete");
-    info!("📁 File downloaded to: {local_path}");
+    info!("📁 File downloaded to: {}", local_path.display());
     Ok(())
 }
 
