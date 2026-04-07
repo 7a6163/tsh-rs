@@ -98,10 +98,7 @@ fn test_operation_mode_to_u8() {
 fn test_operation_mode_try_from_valid() {
     assert_eq!(OperationMode::try_from(1).unwrap(), OperationMode::GetFile);
     assert_eq!(OperationMode::try_from(2).unwrap(), OperationMode::PutFile);
-    assert_eq!(
-        OperationMode::try_from(3).unwrap(),
-        OperationMode::RunShell
-    );
+    assert_eq!(OperationMode::try_from(3).unwrap(), OperationMode::RunShell);
     assert_eq!(
         OperationMode::try_from(4).unwrap(),
         OperationMode::RunCommand

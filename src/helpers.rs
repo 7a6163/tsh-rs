@@ -31,5 +31,4 @@ impl NoiseLayerExt for NoiseLayer {
         }
         Ok(())
     }
-
 }

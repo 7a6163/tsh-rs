@@ -413,11 +413,7 @@ async fn test_handler_shell_mode() {
     client.write_all(b"exit\n").await.unwrap();
 
     // Wait for server to finish (with timeout)
-    let result = tokio::time::timeout(
-        tokio::time::Duration::from_secs(3),
-        server_task,
-    )
-    .await;
+    let result = tokio::time::timeout(tokio::time::Duration::from_secs(3), server_task).await;
 
     // Server may finish or timeout — both are acceptable
     if let Ok(Ok(r)) = result {

@@ -175,8 +175,8 @@ pub(crate) async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) 
                 error!("No data received");
                 return Err(TshError::protocol("No operation mode received"));
             }
-            let mode = OperationMode::try_from(buffer[0])
-                .map_err(TshError::InvalidOperationMode)?;
+            let mode =
+                OperationMode::try_from(buffer[0]).map_err(TshError::InvalidOperationMode)?;
             info!("Operation mode: {mode:?} (byte: {})", buffer[0]);
 
             let result = match mode {

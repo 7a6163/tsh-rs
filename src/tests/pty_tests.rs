@@ -18,7 +18,11 @@ async fn test_pty_write_and_read() {
     // Read output from the PTY (should get something back)
     let mut buf = vec![0u8; 4096];
     let read_result = pty.read(&mut buf).await;
-    assert!(read_result.is_ok(), "PTY read failed: {:?}", read_result.err());
+    assert!(
+        read_result.is_ok(),
+        "PTY read failed: {:?}",
+        read_result.err()
+    );
     assert!(read_result.unwrap() > 0);
 }
 
@@ -30,11 +34,7 @@ async fn test_pty_multiple_writes() {
     for i in 0..5 {
         let cmd = format!("echo test_{i}\n");
         let result = pty.write(cmd.as_bytes()).await;
-        assert!(
-            result.is_ok(),
-            "PTY write #{i} failed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "PTY write #{i} failed: {:?}", result.err());
     }
 }
 

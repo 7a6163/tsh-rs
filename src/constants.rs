@@ -32,4 +32,3 @@ impl From<OperationMode> for u8 {
 
 /// Handshake timeout in seconds
 pub const HANDSHAKE_RW_TIMEOUT: u64 = 3;
-

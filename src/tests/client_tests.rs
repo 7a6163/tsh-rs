@@ -66,7 +66,11 @@ async fn test_client_connect_back_command() {
         .await
         .unwrap()
         .unwrap();
-    assert!(result.is_ok(), "Connect-back should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Connect-back should succeed: {:?}",
+        result.err()
+    );
 }
 
 // ─── handle_direct_connection: address formatting ───────────────────────────
@@ -130,13 +134,8 @@ async fn test_client_direct_connection_separate_port() {
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     // Test with separate host and port
-    let result = client::handle_direct_connection(
-        "127.0.0.1",
-        addr.port(),
-        vec!["echo test"],
-        psk,
-    )
-    .await;
+    let result =
+        client::handle_direct_connection("127.0.0.1", addr.port(), vec!["echo test"], psk).await;
     assert!(result.is_ok());
 
     let _ = server_task.await;
@@ -286,10 +285,7 @@ async fn test_client_upload_file() {
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     let mut layer = NoiseLayer::connect(&addr.to_string(), psk).await.unwrap();
-    let action = format!(
-        "put:{}:/remote/dir",
-        local_file.to_string_lossy()
-    );
+    let action = format!("put:{}:/remote/dir", local_file.to_string_lossy());
     let result = client::execute_action(&mut layer, vec![&action]).await;
     assert!(result.is_ok(), "Upload failed: {:?}", result.err());
 
@@ -436,13 +432,9 @@ async fn test_client_address_with_port() {
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     // Test handle_direct_connection with "host:port" format
-    let result = client::handle_direct_connection(
-        &addr.to_string(),
-        addr.port(),
-        vec!["echo ok"],
-        psk,
-    )
-    .await;
+    let result =
+        client::handle_direct_connection(&addr.to_string(), addr.port(), vec!["echo ok"], psk)
+            .await;
     assert!(result.is_ok());
 
     let _ = server_task.await;
