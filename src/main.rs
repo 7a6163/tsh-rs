@@ -91,7 +91,7 @@ async fn main() -> TshResult<()> {
             let psk = sub_matches.get_one::<String>("psk").unwrap();
 
             println!("🚀 tsh-rs v{} - Server Mode", env!("CARGO_PKG_VERSION"));
-            println!("🔐 PSK: {}***", &psk[..4.min(psk.len())]);
+            println!("🔐 PSK authentication enabled");
 
             if let Some(host) = sub_matches.get_one::<String>("connect-back") {
                 let delay: u64 = sub_matches
@@ -123,7 +123,7 @@ async fn main() -> TshResult<()> {
                 .unwrap_or_default();
 
             println!("🚀 tsh-rs v{} - Client Mode", env!("CARGO_PKG_VERSION"));
-            println!("🔐 PSK: {}***", &psk[..4.min(psk.len())]);
+            println!("🔐 PSK authentication enabled");
 
             if host == "cb" {
                 println!("📡 Connect-back mode on port {port}");

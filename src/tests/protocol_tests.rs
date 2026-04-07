@@ -9,10 +9,16 @@ async fn test_operation_mode_serialization() {
     assert_eq!(OperationMode::RunShell as u8, 3);
     assert_eq!(OperationMode::RunCommand as u8, 4);
 
-    assert_eq!(OperationMode::from(1), OperationMode::GetFile);
-    assert_eq!(OperationMode::from(2), OperationMode::PutFile);
-    assert_eq!(OperationMode::from(3), OperationMode::RunShell);
-    assert_eq!(OperationMode::from(4), OperationMode::RunCommand);
+    assert_eq!(OperationMode::try_from(1).unwrap(), OperationMode::GetFile);
+    assert_eq!(OperationMode::try_from(2).unwrap(), OperationMode::PutFile);
+    assert_eq!(OperationMode::try_from(3).unwrap(), OperationMode::RunShell);
+    assert_eq!(
+        OperationMode::try_from(4).unwrap(),
+        OperationMode::RunCommand
+    );
+    assert!(OperationMode::try_from(0).is_err());
+    assert!(OperationMode::try_from(5).is_err());
+    assert!(OperationMode::try_from(255).is_err());
 }
 
 #[tokio::test]
@@ -33,7 +39,7 @@ async fn test_command_protocol() {
         let n = layer.read(&mut buffer).await.unwrap();
 
         // Parse the message
-        let mode = OperationMode::from(buffer[0]);
+        let mode = OperationMode::try_from(buffer[0]).unwrap();
         let cmd_end = buffer[1..n].iter().position(|&b| b == 0).unwrap() + 1;
         let received_command = String::from_utf8_lossy(&buffer[1..cmd_end]);
 
@@ -78,7 +84,7 @@ async fn test_file_download_protocol() {
         let n = layer.read(&mut buffer).await.unwrap();
 
         // Parse the message
-        let mode = OperationMode::from(buffer[0]);
+        let mode = OperationMode::try_from(buffer[0]).unwrap();
         let path_end = buffer[1..n].iter().position(|&b| b == 0).unwrap() + 1;
         let received_path = String::from_utf8_lossy(&buffer[1..path_end]);
 
@@ -124,7 +130,7 @@ async fn test_file_upload_protocol() {
         let n = layer.read(&mut buffer).await.unwrap();
 
         // Parse the message
-        let mode = OperationMode::from(buffer[0]);
+        let mode = OperationMode::try_from(buffer[0]).unwrap();
         let path_end = buffer[1..n].iter().position(|&b| b == 0).unwrap() + 1;
         let received_path = String::from_utf8_lossy(&buffer[1..path_end]);
 
@@ -177,7 +183,7 @@ async fn test_shell_mode_protocol() {
         let _n = layer.read(&mut buffer).await.unwrap();
 
         // Parse the mode (should be just the mode byte for shell)
-        OperationMode::from(buffer[0])
+        OperationMode::try_from(buffer[0]).unwrap()
     });
 
     // Give server time to start

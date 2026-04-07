@@ -5,7 +5,6 @@ use crate::{noise::NoiseLayer, TshError, TshResult};
 pub trait NoiseLayerExt {
     async fn write_all(&mut self, data: &[u8]) -> TshResult<()>;
     async fn read_exact(&mut self, buf: &mut [u8]) -> TshResult<()>;
-    async fn read_some(&mut self, buf: &mut [u8]) -> TshResult<usize>;
 }
 
 impl NoiseLayerExt for NoiseLayer {
@@ -33,7 +32,4 @@ impl NoiseLayerExt for NoiseLayer {
         Ok(())
     }
 
-    async fn read_some(&mut self, buf: &mut [u8]) -> TshResult<usize> {
-        self.read(buf).await
-    }
 }

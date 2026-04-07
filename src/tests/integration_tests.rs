@@ -25,7 +25,7 @@ async fn test_command_execution_integration() {
         let n = layer.read(&mut buffer).await.unwrap();
 
         // Parse command
-        let mode = OperationMode::from(buffer[0]);
+        let mode = OperationMode::try_from(buffer[0]).unwrap();
         assert_eq!(mode, OperationMode::RunCommand);
 
         let cmd_end = buffer[1..n].iter().position(|&b| b == 0).unwrap() + 1;
@@ -140,7 +140,7 @@ async fn test_file_operations_integration() {
             let n = layer.read(&mut buffer).await.unwrap();
 
             // Parse request
-            let mode = OperationMode::from(buffer[0]);
+            let mode = OperationMode::try_from(buffer[0]).unwrap();
             assert_eq!(mode, OperationMode::GetFile);
 
             let path_end = buffer[1..n].iter().position(|&b| b == 0).unwrap() + 1;

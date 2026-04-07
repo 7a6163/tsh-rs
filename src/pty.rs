@@ -2,10 +2,15 @@ use crate::{error::*, TshResult};
 use portable_pty::{CommandBuilder, PtySize};
 use std::io::{Read, Write};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 /// Cross-platform PTY abstraction
+///
+/// Reader and writer are extracted once at construction time to avoid
+/// repeated `try_clone_reader`/`take_writer` calls in the hot loop.
 pub struct Pty {
+    reader: Arc<Mutex<Box<dyn Read + Send>>>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
     master: Arc<Mutex<Box<dyn portable_pty::MasterPty + Send>>>,
 }
 
@@ -34,7 +39,20 @@ impl Pty {
             .spawn_command(cmd)
             .map_err(|e| TshError::pty(format!("Failed to spawn shell: {e}")))?;
 
+        // Extract reader and writer once at construction
+        let reader = pty_pair
+            .master
+            .try_clone_reader()
+            .map_err(|e| TshError::pty(format!("Failed to clone reader: {e}")))?;
+
+        let writer = pty_pair
+            .master
+            .take_writer()
+            .map_err(|e| TshError::pty(format!("Failed to take writer: {e}")))?;
+
         Ok(Pty {
+            reader: Arc::new(Mutex::new(reader)),
+            writer: Arc::new(Mutex::new(writer)),
             master: Arc::new(Mutex::new(pty_pair.master)),
         })
     }
@@ -49,15 +67,14 @@ impl Pty {
     }
 
     /// Read data from PTY
-    pub async fn read(&mut self, buf: &mut [u8]) -> TshResult<usize> {
-        let master = self.master.clone();
+    pub async fn read(&self, buf: &mut [u8]) -> TshResult<usize> {
+        let reader = self.reader.clone();
         let buf_len = buf.len();
 
         let (n, data) = tokio::task::spawn_blocking(move || {
-            let master = master.blocking_lock();
-            let mut reader = master
-                .try_clone_reader()
-                .map_err(|e| TshError::pty(format!("Failed to clone reader: {e}")))?;
+            let mut reader = reader
+                .lock()
+                .map_err(|e| TshError::pty(format!("Reader lock poisoned: {e}")))?;
 
             let mut temp_buf = vec![0u8; buf_len];
             match reader.read(&mut temp_buf) {
@@ -73,19 +90,20 @@ impl Pty {
     }
 
     /// Write data to PTY
-    pub async fn write(&mut self, data: &[u8]) -> TshResult<usize> {
-        let master = self.master.clone();
+    pub async fn write(&self, data: &[u8]) -> TshResult<usize> {
+        let writer = self.writer.clone();
         let data = data.to_vec();
 
         let n = tokio::task::spawn_blocking(move || {
-            let master = master.blocking_lock();
-            let mut writer = master
-                .take_writer()
-                .map_err(|e| TshError::pty(format!("Failed to get writer: {e}")))?;
+            let mut writer = writer
+                .lock()
+                .map_err(|e| TshError::pty(format!("Writer lock poisoned: {e}")))?;
 
             match writer.write(&data) {
                 Ok(n) => {
-                    let _ = writer.flush();
+                    writer
+                        .flush()
+                        .map_err(|e| TshError::pty(format!("Flush error: {e}")))?;
                     Ok(n)
                 }
                 Err(e) => Err(TshError::pty(format!("Write error: {e}"))),
@@ -106,7 +124,10 @@ impl Pty {
             pixel_height: 0,
         };
 
-        let master = self.master.lock().await;
+        let master = self
+            .master
+            .lock()
+            .map_err(|e| TshError::pty(format!("Master lock poisoned: {e}")))?;
         master
             .resize(size)
             .map_err(|e| TshError::pty(format!("Failed to resize PTY: {e}")))

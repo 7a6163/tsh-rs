@@ -291,9 +291,20 @@ pub async fn perform_handshake_responder(
     Ok(NoiseLayer { stream, transport })
 }
 
+/// Compute HMAC-SHA256(key=psk, message=challenge) for PSK authentication
+fn compute_psk_response(challenge: &[u8], psk: &str) -> Vec<u8> {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_slice(psk.as_bytes()).expect("HMAC accepts any key length");
+    mac.update(challenge);
+    mac.finalize().into_bytes().to_vec()
+}
+
 /// Perform PSK authentication as server (over encrypted channel)
 async fn perform_psk_auth_server(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
-    use sha2::{Digest, Sha256};
+    use subtle::ConstantTimeEq;
 
     // Generate challenge
     use rand::Rng;
@@ -343,13 +354,9 @@ async fn perform_psk_auth_server(layer: &mut NoiseLayer, psk: &str) -> TshResult
         .read_message(&encrypted, &mut response)
         .map_err(|e| TshError::encryption(format!("Failed to decrypt response: {e}")))?;
 
-    // Verify response
-    let mut hasher = Sha256::new();
-    hasher.update(challenge);
-    hasher.update(psk.as_bytes());
-    let expected = hasher.finalize();
-
-    let is_valid = &response[..len] == expected.as_slice();
+    // Verify response using HMAC-SHA256 with constant-time comparison
+    let expected = compute_psk_response(&challenge, psk);
+    let is_valid = response[..len].ct_eq(&expected).into();
 
     // Send result
     let result = if is_valid {
@@ -379,8 +386,6 @@ async fn perform_psk_auth_server(layer: &mut NoiseLayer, psk: &str) -> TshResult
 
 /// Perform PSK authentication as client (over encrypted channel)
 async fn perform_psk_auth_client(layer: &mut NoiseLayer, psk: &str) -> TshResult<bool> {
-    use sha2::{Digest, Sha256};
-
     // Read challenge
     let mut len_bytes = [0u8; 4];
     layer
@@ -403,11 +408,8 @@ async fn perform_psk_auth_client(layer: &mut NoiseLayer, psk: &str) -> TshResult
         .read_message(&encrypted, &mut challenge)
         .map_err(|e| TshError::encryption(format!("Failed to decrypt challenge: {e}")))?;
 
-    // Generate response
-    let mut hasher = Sha256::new();
-    hasher.update(&challenge[..len]);
-    hasher.update(psk.as_bytes());
-    let response = hasher.finalize();
+    // Generate HMAC-SHA256 response
+    let response = compute_psk_response(&challenge[..len], psk);
 
     // Send response
     let mut buf = vec![0u8; MAX_MESSAGE_SIZE + 16];
@@ -451,14 +453,4 @@ async fn perform_psk_auth_client(layer: &mut NoiseLayer, psk: &str) -> TshResult
         .map_err(|e| TshError::encryption(format!("Failed to decrypt result: {e}")))?;
 
     Ok(&result[..len] == b"OK")
-}
-
-/// Helper function to derive key from password (legacy)
-pub fn derive_key_from_password(password: &str, salt: &[u8]) -> Vec<u8> {
-    use sha2::{Digest, Sha256};
-
-    let mut hasher = Sha256::new();
-    hasher.update(password.as_bytes());
-    hasher.update(salt);
-    hasher.finalize().to_vec()
 }

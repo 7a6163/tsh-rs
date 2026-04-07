@@ -1,7 +1,6 @@
 use crossterm::{
-    event::{self, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    event::{self, Event},
+    terminal::{disable_raw_mode, enable_raw_mode},
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
@@ -46,7 +45,8 @@ pub async fn handle_connect_back_mode(port: u16, actions: Vec<&str>, psk: &str) 
                 let mut mode_buf = [0u8; 1];
                 match layer.read_exact(&mut mode_buf).await {
                     Ok(_) => {
-                        let mode = OperationMode::from(mode_buf[0]);
+                        let mode = OperationMode::try_from(mode_buf[0])
+                            .map_err(TshError::InvalidOperationMode)?;
                         info!("🎯 Server requested operation: {mode:?}");
 
                         // Handle the requested operation
@@ -117,7 +117,7 @@ pub async fn handle_direct_connection(
     execute_action(&mut layer, actions).await
 }
 
-async fn execute_action(layer: &mut NoiseLayer, actions: Vec<&str>) -> TshResult<()> {
+pub(crate) async fn execute_action(layer: &mut NoiseLayer, actions: Vec<&str>) -> TshResult<()> {
     if actions.is_empty() {
         // Interactive shell mode
         interactive_shell(layer).await
@@ -158,52 +158,6 @@ async fn interactive_shell(layer: &mut NoiseLayer) -> TshResult<()> {
     let _ = disable_raw_mode();
 
     result
-}
-
-async fn shell_loop(layer: &mut NoiseLayer) -> TshResult<()> {
-    loop {
-        tokio::select! {
-            // Read from server
-            server_data = read_server_data(layer) => {
-                match server_data {
-                    Ok(data) => {
-                        if data.is_empty() {
-                            info!("🔚 Server disconnected");
-                            break;
-                        }
-                        print!("{}", String::from_utf8_lossy(&data));
-                        stdout().flush().unwrap();
-                    }
-                    Err(e) => {
-                        error!("Server read error: {e}");
-                        break;
-                    }
-                }
-            }
-
-            // Read from user input
-            user_input = read_user_input() => {
-                match user_input {
-                    Ok(Some(data)) => {
-                        if let Err(e) = layer.write_all(&data).await {
-                            error!("Failed to send to server: {e}");
-                            break;
-                        }
-                    }
-                    Ok(None) => {
-                        info!("👋 Exiting...");
-                        break;
-                    }
-                    Err(e) => {
-                        error!("Input error: {e}");
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(())
 }
 
 async fn enhanced_shell_loop(layer: &mut NoiseLayer) -> TshResult<()> {
@@ -262,33 +216,6 @@ async fn read_server_data(layer: &mut NoiseLayer) -> TshResult<Vec<u8>> {
     let n = layer.read(&mut buf).await?;
     buf.truncate(n);
     Ok(buf)
-}
-
-async fn read_user_input() -> TshResult<Option<Vec<u8>>> {
-    if event::poll(tokio::time::Duration::from_millis(10))
-        .map_err(|e| TshError::Io(std::io::Error::other(e)))?
-    {
-        match event::read().map_err(|e| TshError::Io(std::io::Error::other(e)))? {
-            Event::Key(key_event) => match key_event.code {
-                KeyCode::Char('c')
-                    if key_event
-                        .modifiers
-                        .contains(crossterm::event::KeyModifiers::CONTROL) =>
-                {
-                    Ok(None)
-                }
-                KeyCode::Char(c) => Ok(Some(vec![c as u8])),
-                KeyCode::Enter => Ok(Some(vec![b'\r', b'\n'])),
-                KeyCode::Backspace => Ok(Some(vec![8])),
-                KeyCode::Tab => Ok(Some(vec![b'\t'])),
-                _ => Ok(Some(vec![])),
-            },
-            _ => Ok(Some(vec![])),
-        }
-    } else {
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        Ok(Some(vec![]))
-    }
 }
 
 async fn read_enhanced_user_input(terminal: &mut TerminalHandler) -> TshResult<Option<Vec<u8>>> {
@@ -431,13 +358,11 @@ async fn handle_reverse_shell_client(layer: &mut NoiseLayer) -> TshResult<()> {
 
     // Enable raw mode for terminal
     enable_raw_mode().map_err(|e| TshError::Io(std::io::Error::other(e)))?;
-    execute!(stdout(), EnterAlternateScreen).map_err(|e| TshError::Io(std::io::Error::other(e)))?;
 
-    let result = shell_loop(layer).await;
+    let result = enhanced_shell_loop(layer).await;
 
     // Restore terminal
     let _ = disable_raw_mode();
-    let _ = execute!(stdout(), LeaveAlternateScreen);
 
     result
 }
@@ -479,7 +404,7 @@ async fn execute_command(layer: &mut NoiseLayer, command: &str) -> TshResult<()>
         eprint!("{}", String::from_utf8_lossy(&stderr_data));
     }
 
-    stdout().flush().unwrap();
+    let _ = stdout().flush();
 
     if exit_code != 0 {
         info!("⚠️  Command exited with code: {exit_code}");
