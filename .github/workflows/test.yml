@@ -26,7 +26,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
@@ -35,7 +35,7 @@ jobs:
         components: rustfmt, clippy
     
     - name: Cache cargo registry
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/.cargo/registry
         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
@@ -43,7 +43,7 @@ jobs:
           ${{ runner.os }}-cargo-registry-
     
     - name: Cache cargo index
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/.cargo/git
         key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
@@ -51,7 +51,7 @@ jobs:
           ${{ runner.os }}-cargo-git-
     
     - name: Cache cargo build
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: target
         key: ${{ runner.os }}-cargo-build-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
@@ -92,7 +92,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     
     - name: Install Rust stable
       uses: dtolnay/rust-toolchain@stable
@@ -237,7 +237,7 @@ jobs:
     
     - name: Upload test logs on failure
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-logs
         path: |
@@ -250,7 +250,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     
     - name: Install Rust stable
       uses: dtolnay/rust-toolchain@stable
@@ -264,7 +264,7 @@ jobs:
       run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
     
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v6
       with:
         file: lcov.info
         fail_ci_if_error: false
