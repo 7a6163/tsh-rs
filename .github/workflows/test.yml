@@ -171,27 +171,31 @@ jobs:
         
         # Test 2: File operations
         echo -e "\n${YELLOW}2. Testing File Operations${NC}"
-        
-        # Create test files
-        echo "Test content for download" > /tmp/test_download.txt
-        mkdir -p /tmp/tsh_test
-        
-        # Start server
-        $BIN server --port 9002 --psk filekey > server2.log 2>&1 &
+
+        # Create test files using relative paths (server validates against absolute paths)
+        WORK_DIR="$(pwd)/tsh_func_test"
+        mkdir -p "$WORK_DIR"
+        echo "Test content for download" > "$WORK_DIR/test_download.txt"
+        mkdir -p "$WORK_DIR/output"
+
+        # Start server in the work directory so relative paths resolve correctly
+        cd "$WORK_DIR"
+        "$OLDPWD/$BIN" server --port 9002 --psk filekey > "$OLDPWD/server2.log" 2>&1 &
         SERVER_PID=$!
+        cd "$OLDPWD"
         sleep 2
-        
-        # Test file download
+
+        # Test file download (use relative path from server's CWD)
         run_test "file download" \
-            "$BIN client 127.0.0.1:9002 --psk filekey get:/tmp/test_download.txt:/tmp/tsh_test && cat /tmp/tsh_test/test_download.txt" \
+            "$BIN client 127.0.0.1:9002 --psk filekey get:test_download.txt:$WORK_DIR/output && cat $WORK_DIR/output/test_download.txt" \
             "Test content for download"
-        
+
         # Test file upload
-        echo "Test content for upload" > /tmp/test_upload.txt
+        echo "Test content for upload" > "$WORK_DIR/test_upload.txt"
         run_test "file upload" \
-            "$BIN client 127.0.0.1:9002 --psk filekey put:/tmp/test_upload.txt:/tmp/tsh_test && cat /tmp/tsh_test/test_upload.txt" \
+            "$BIN client 127.0.0.1:9002 --psk filekey put:$WORK_DIR/test_upload.txt:output && cat $WORK_DIR/output/test_upload.txt" \
             "Test content for upload"
-        
+
         # Kill server
         kill $SERVER_PID 2>/dev/null || true
         
@@ -216,7 +220,7 @@ jobs:
         
         # Cleanup
         cleanup
-        rm -rf /tmp/tsh_test /tmp/test_*.txt
+        rm -rf "$WORK_DIR"
         
         # Summary
         echo -e "\n${YELLOW}=== Test Summary ===${NC}"
