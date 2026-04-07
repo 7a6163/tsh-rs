@@ -7,7 +7,12 @@ use crate::server;
 
 #[test]
 fn test_validate_file_path_rejects_absolute_path() {
-    let result = server::validate_file_path(b"/etc/passwd");
+    #[cfg(unix)]
+    let path = b"/etc/passwd" as &[u8];
+    #[cfg(windows)]
+    let path = b"C:\\Windows\\System32\\config" as &[u8];
+
+    let result = server::validate_file_path(path);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("Absolute paths"), "Got: {err}");
@@ -73,7 +78,11 @@ fn test_extract_and_validate_path_no_null_terminator() {
 
 #[test]
 fn test_extract_and_validate_path_rejects_absolute() {
-    let data = b"/etc/passwd\0";
+    #[cfg(unix)]
+    let data = b"/etc/passwd\0" as &[u8];
+    #[cfg(windows)]
+    let data = b"C:\\Windows\\System32\0" as &[u8];
+
     let result = server::extract_and_validate_path(data);
     assert!(result.is_err());
 }

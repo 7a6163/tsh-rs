@@ -358,15 +358,21 @@ async fn test_handler_rejects_absolute_path_upload() {
 
     let mut client = NoiseLayer::connect(&addr.to_string(), psk).await.unwrap();
 
-    // Attempt absolute path upload
+    // Attempt absolute path upload (platform-aware)
     let mut data = Vec::new();
     data.push(OperationMode::PutFile as u8);
+    #[cfg(unix)]
     data.extend_from_slice(b"/tmp/evil_file.txt");
+    #[cfg(windows)]
+    data.extend_from_slice(b"C:\\temp\\evil_file.txt");
     data.push(0);
     client.write_all(&data).await.unwrap();
 
-    // Server should return an error
-    let result = server_task.await.unwrap();
+    // Server should return an error (with timeout to prevent hang)
+    let result = tokio::time::timeout(tokio::time::Duration::from_secs(5), server_task)
+        .await
+        .expect("server task timed out")
+        .unwrap();
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("Absolute"), "Got: {err}");

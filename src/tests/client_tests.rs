@@ -199,12 +199,12 @@ async fn test_client_download_file() {
     let listener = NoiseListener::new("127.0.0.1:0", psk).await.unwrap();
     let addr = listener.local_addr().unwrap();
 
-    // Create a unique temp directory before spawning tasks
+    // Create a unique download directory in CWD to avoid Windows path `:` issues
     let unique_id = COUNTER.fetch_add(1, Ordering::SeqCst);
-    let download_dir =
-        std::env::temp_dir().join(format!("tsh_dl_{}_{}", std::process::id(), unique_id));
-    let _ = tokio::fs::remove_dir_all(&download_dir).await;
-    tokio::fs::create_dir_all(&download_dir).await.unwrap();
+    let download_dir_name = format!("tsh_dl_{}_{}", std::process::id(), unique_id);
+    let download_dir = std::path::Path::new(&download_dir_name);
+    let _ = tokio::fs::remove_dir_all(download_dir).await;
+    tokio::fs::create_dir_all(download_dir).await.unwrap();
 
     // Mock server: respond with file data
     let server_task = tokio::spawn(async move {
@@ -249,10 +249,11 @@ async fn test_client_upload_file() {
     let psk = "test_client_upload";
     let upload_content = b"content to upload";
 
-    // Create local file to upload
-    let temp_dir = std::env::temp_dir();
-    let local_file = temp_dir.join("tsh_client_upload_src.txt");
-    tokio::fs::write(&local_file, upload_content).await.unwrap();
+    // Create local file in CWD to avoid Windows path `:` issues with action parsing
+    let local_filename = "tsh_client_upload_src.txt";
+    tokio::fs::write(local_filename, upload_content)
+        .await
+        .unwrap();
 
     let listener = NoiseListener::new("127.0.0.1:0", psk).await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -291,12 +292,12 @@ async fn test_client_upload_file() {
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     let mut layer = NoiseLayer::connect(&addr.to_string(), psk).await.unwrap();
-    let action = format!("put:{}:/remote/dir", local_file.to_string_lossy());
+    let action = format!("put:{local_filename}:/remote/dir");
     let result = client::execute_action(&mut layer, vec![&action]).await;
     assert!(result.is_ok(), "Upload failed: {:?}", result.err());
 
     // Cleanup
-    let _ = tokio::fs::remove_file(&local_file).await;
+    let _ = tokio::fs::remove_file(local_filename).await;
     let _ = server_task.await;
 }
 
