@@ -25,9 +25,9 @@ hmac = "0.12"
 subtle = "2.6"
 snow = "0.9"
 base64 = "0.22"
-indicatif = "0.17"
-crossterm = "0.27"
-portable-pty = "0.8"
+indicatif = "0.18"
+crossterm = "0.29"
+portable-pty = "0.9"
 
 [target.'cfg(unix)'.dependencies]
 nix = "0.27"
