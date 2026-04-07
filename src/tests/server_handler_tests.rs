@@ -417,8 +417,8 @@ async fn test_handler_shell_mode() {
 
     // Server may finish or timeout — both are acceptable
     if let Ok(Ok(r)) = result {
-        // If it completed, it should be Ok
-        assert!(r.is_ok() || true); // shell exit is OK
+        // Shell exit with any result is acceptable
+        let _ = r;
     }
 }
 

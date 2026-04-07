@@ -96,8 +96,7 @@ async fn test_server_rejects_invalid_operation_mode() {
         assert!(n > 0);
 
         // Try to parse it — should fail for invalid mode
-        let mode_result = OperationMode::try_from(buffer[0]);
-        mode_result
+        OperationMode::try_from(buffer[0])
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;

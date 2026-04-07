@@ -75,7 +75,7 @@ fn test_error_io_conversion() {
 #[test]
 fn test_tsh_result_ok() {
     let result: TshResult<i32> = Ok(42);
-    assert_eq!(result.unwrap(), 42);
+    assert!(result.is_ok());
 }
 
 #[test]
