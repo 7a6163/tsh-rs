@@ -108,7 +108,7 @@ fn test_operation_mode_try_from_valid() {
 #[test]
 fn test_operation_mode_try_from_invalid() {
     assert_eq!(OperationMode::try_from(0).unwrap_err(), 0);
-    assert_eq!(OperationMode::try_from(5).unwrap_err(), 5);
+    assert_eq!(OperationMode::try_from(7).unwrap_err(), 7);
     assert_eq!(OperationMode::try_from(255).unwrap_err(), 255);
 }
 
@@ -119,6 +119,8 @@ fn test_operation_mode_u8_round_trip() {
         OperationMode::PutFile,
         OperationMode::RunShell,
         OperationMode::RunCommand,
+        OperationMode::SysInfo,
+        OperationMode::Socks5,
     ] {
         let byte: u8 = mode.into();
         let recovered = OperationMode::try_from(byte).unwrap();

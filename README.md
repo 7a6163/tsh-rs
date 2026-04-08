@@ -14,9 +14,16 @@ A Rust implementation of Tiny Shell (tsh) - a remote shell access tool for secur
   - File download (`get`)
   - File upload (`put`)
   - Direct command execution
+  - System info collection (`sysinfo`)
+  - SOCKS5 proxy for pivoting into internal networks
 - **Connection Modes**:
   - Direct connection to server
   - Connect-back mode (server connects to client)
+  - WebSocket transport (`--transport https`) for EDR evasion
+- **Evasion & Persistence**:
+  - Jitter on connect-back delay (±25%) to defeat beaconing detection
+  - Persistence via LaunchAgent (macOS), systemd (Linux), Registry (Windows)
+  - C2 over WebSocket to blend with normal HTTPS traffic
 - **Modern Rust Implementation**:
   - Memory safety
   - Async/await with Tokio
@@ -99,16 +106,26 @@ See `make help` for all available commands.
 ## Command Line Options
 
 ### Server Mode (`tsh server`)
-- `--psk <PSK>` - Pre-shared key for authentication (required)
+- `--psk <PSK>` - Pre-shared key for authentication (required unless `--config`)
 - `-p, --port <PORT>` - Port number (default: 1234)
 - `-c, --connect-back <HOST>` - Connect back to client host
 - `-d, --delay <SECONDS>` - Connect back delay in seconds (default: 5)
+- `-t, --transport <TYPE>` - Transport type: `tcp` (default) or `https` (WebSocket)
+- `--install` - Install persistence (autostart on reboot)
+- `--uninstall` - Remove persistence
+- `--config <PATH>` - Load settings from config file
 
 ### Client Mode (`tsh client`)
 - `--psk <PSK>` - Pre-shared key for authentication (required)
 - `-p, --port <PORT>` - Port number (default: 1234)
+- `-t, --transport <TYPE>` - Transport type: `tcp` (default) or `https` (WebSocket)
 - `<HOST>` - Target hostname or "cb" for connect-back mode
-- `[ACTION]` - Action to perform (get:remote:local, put:local:remote, or command)
+- `[ACTION]` - Action to perform:
+  - `get:remote:local` - Download file
+  - `put:local:remote` - Upload file
+  - `sysinfo` - Query agent system information
+  - `socks5` or `socks5:bind_addr:port` - Start SOCKS5 proxy
+  - Any other string - Execute as command
 
 ## Security Features
 
