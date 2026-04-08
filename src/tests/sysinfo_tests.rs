@@ -20,7 +20,6 @@ fn test_collect_returns_non_empty_fields() {
 #[test]
 fn test_collect_os_contains_platform() {
     let info = SystemInfo::collect();
-    // env::consts::OS is "macos", "linux", or "windows"
     let valid = ["macos", "linux", "windows"];
     assert!(
         valid.iter().any(|v| info.os.contains(v)),
@@ -48,7 +47,7 @@ fn test_json_round_trip() {
     let bytes = info.to_json_bytes();
     assert!(!bytes.is_empty(), "json bytes should not be empty");
 
-    let parsed: SystemInfo = serde_json::from_slice(&bytes).expect("should parse back");
+    let parsed = SystemInfo::from_json_bytes(&bytes).expect("should parse back");
     assert_eq!(parsed.hostname, info.hostname);
     assert_eq!(parsed.os, info.os);
     assert_eq!(parsed.arch, info.arch);
@@ -68,7 +67,7 @@ fn test_json_bytes_are_valid_json() {
 }
 
 #[test]
-fn test_deserialize_from_known_json() {
+fn test_from_json_bytes_known_json() {
     let json = r#"{
         "hostname": "test-host",
         "os": "linux unix",
@@ -79,10 +78,16 @@ fn test_deserialize_from_known_json() {
         "pid": 42,
         "is_elevated": false
     }"#;
-    let info: SystemInfo = serde_json::from_str(json).expect("should parse");
+    let info = SystemInfo::from_json_bytes(json.as_bytes()).expect("should parse");
     assert_eq!(info.hostname, "test-host");
     assert_eq!(info.pid, 42);
     assert!(!info.is_elevated);
+}
+
+#[test]
+fn test_from_json_bytes_invalid() {
+    assert!(SystemInfo::from_json_bytes(b"not json").is_none());
+    assert!(SystemInfo::from_json_bytes(b"{}").is_none());
 }
 
 // ─── Display ─────────────────────────────────────────────────────────────────

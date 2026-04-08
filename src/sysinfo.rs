@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::env;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct SystemInfo {
     pub hostname: String,
     pub os: String,
@@ -30,7 +30,31 @@ impl SystemInfo {
     }
 
     pub fn to_json_bytes(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap_or_default()
+        let value = json!({
+            "hostname": self.hostname,
+            "os": self.os,
+            "arch": self.arch,
+            "username": self.username,
+            "home_dir": self.home_dir,
+            "current_dir": self.current_dir,
+            "pid": self.pid,
+            "is_elevated": self.is_elevated,
+        });
+        serde_json::to_vec(&value).unwrap_or_default()
+    }
+
+    pub fn from_json_bytes(bytes: &[u8]) -> Option<Self> {
+        let v: Value = serde_json::from_slice(bytes).ok()?;
+        Some(Self {
+            hostname: v["hostname"].as_str()?.to_string(),
+            os: v["os"].as_str()?.to_string(),
+            arch: v["arch"].as_str()?.to_string(),
+            username: v["username"].as_str()?.to_string(),
+            home_dir: v["home_dir"].as_str()?.to_string(),
+            current_dir: v["current_dir"].as_str()?.to_string(),
+            pid: v["pid"].as_u64()? as u32,
+            is_elevated: v["is_elevated"].as_bool()?,
+        })
     }
 
     pub fn display(&self) -> String {

@@ -11,7 +11,7 @@ fn test_persist_config_serialize_with_connect_back() {
         connect_back_host: Some("10.0.0.1".to_string()),
         delay: 30,
     };
-    let json = serde_json::to_string(&config).expect("should serialize");
+    let json = config.to_json_string().expect("should serialize");
     assert!(json.contains("my-secret-key"));
     assert!(json.contains("4444"));
     assert!(json.contains("10.0.0.1"));
@@ -26,7 +26,7 @@ fn test_persist_config_serialize_listen_mode() {
         connect_back_host: None,
         delay: 5,
     };
-    let json = serde_json::to_string(&config).expect("should serialize");
+    let json = config.to_json_string().expect("should serialize");
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert!(parsed["connect_back_host"].is_null());
 }
@@ -39,8 +39,8 @@ fn test_persist_config_round_trip() {
         connect_back_host: Some("192.168.1.100".to_string()),
         delay: 60,
     };
-    let json = serde_json::to_string_pretty(&original).expect("should serialize");
-    let parsed: PersistConfig = serde_json::from_str(&json).expect("should deserialize");
+    let json = original.to_json_string().expect("should serialize");
+    let parsed = PersistConfig::from_json_str(&json).expect("should deserialize");
     assert_eq!(parsed.psk, original.psk);
     assert_eq!(parsed.port, original.port);
     assert_eq!(parsed.connect_back_host, original.connect_back_host);
@@ -55,8 +55,8 @@ fn test_persist_config_round_trip_none_host() {
         connect_back_host: None,
         delay: 10,
     };
-    let json = serde_json::to_string(&original).expect("should serialize");
-    let parsed: PersistConfig = serde_json::from_str(&json).expect("should deserialize");
+    let json = original.to_json_string().expect("should serialize");
+    let parsed = PersistConfig::from_json_str(&json).expect("should deserialize");
     assert_eq!(parsed.connect_back_host, None);
 }
 
@@ -74,7 +74,7 @@ fn test_load_config_from_file() {
         connect_back_host: Some("10.10.10.10".to_string()),
         delay: 15,
     };
-    let json = serde_json::to_string_pretty(&config).unwrap();
+    let json = config.to_json_string().unwrap();
     fs::write(&path, &json).unwrap();
 
     let loaded = load_config(path.to_str().unwrap()).expect("should load config");

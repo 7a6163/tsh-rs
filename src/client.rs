@@ -414,9 +414,9 @@ async fn request_sysinfo(layer: &mut NoiseLayer) -> TshResult<()> {
 }
 
 fn display_sysinfo(json_bytes: &[u8]) {
-    match serde_json::from_slice::<SystemInfo>(json_bytes) {
-        Ok(info) => print!("{}", info.display()),
-        Err(e) => error!("Failed to parse system info: {e}"),
+    match SystemInfo::from_json_bytes(json_bytes) {
+        Some(info) => print!("{}", info.display()),
+        None => error!("Failed to parse system info"),
     }
 }
 

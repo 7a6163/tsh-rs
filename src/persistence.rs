@@ -1,16 +1,47 @@
 use crate::error::*;
 use log::info;
-use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Configuration stored on disk for persistence (chmod 600)
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PersistConfig {
     pub psk: String,
     pub port: u16,
     pub connect_back_host: Option<String>,
     pub delay: u64,
+}
+
+impl PersistConfig {
+    pub fn to_json_string(&self) -> TshResult<String> {
+        let value = json!({
+            "psk": self.psk,
+            "port": self.port,
+            "connect_back_host": self.connect_back_host,
+            "delay": self.delay,
+        });
+        serde_json::to_string_pretty(&value)
+            .map_err(|e| TshError::system(format!("Failed to serialize config: {e}")))
+    }
+
+    pub fn from_json_str(s: &str) -> TshResult<Self> {
+        let v: Value = serde_json::from_str(s)
+            .map_err(|e| TshError::system(format!("Failed to parse config: {e}")))?;
+        Ok(Self {
+            psk: v["psk"]
+                .as_str()
+                .ok_or_else(|| TshError::system("Missing 'psk' field"))?
+                .to_string(),
+            port: v["port"]
+                .as_u64()
+                .ok_or_else(|| TshError::system("Missing 'port' field"))? as u16,
+            connect_back_host: v["connect_back_host"].as_str().map(|s| s.to_string()),
+            delay: v["delay"]
+                .as_u64()
+                .ok_or_else(|| TshError::system("Missing 'delay' field"))?,
+        })
+    }
 }
 
 /// Install persistence: copy binary + write config + register autostart
@@ -33,8 +64,7 @@ pub fn install(config: &PersistConfig) -> TshResult<()> {
 
     // Write config file (contains PSK, chmod 600)
     let config_path = install_dir.join("config.json");
-    let config_json = serde_json::to_string_pretty(config)
-        .map_err(|e| TshError::system(format!("Failed to serialize config: {e}")))?;
+    let config_json = config.to_json_string()?;
     fs::write(&config_path, &config_json)
         .map_err(|e| TshError::system(format!("Failed to write config: {e}")))?;
 
@@ -336,6 +366,5 @@ fn unregister_autostart() -> TshResult<()> {
 pub fn load_config(path: &str) -> TshResult<PersistConfig> {
     let content = fs::read_to_string(path)
         .map_err(|e| TshError::system(format!("Failed to read config file: {e}")))?;
-    serde_json::from_str(&content)
-        .map_err(|e| TshError::system(format!("Failed to parse config: {e}")))
+    PersistConfig::from_json_str(&content)
 }
