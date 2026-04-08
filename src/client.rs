@@ -415,7 +415,9 @@ async fn request_sysinfo(layer: &mut NoiseLayer) -> TshResult<()> {
 
 fn display_sysinfo(json_bytes: &[u8]) {
     match SystemInfo::from_json_bytes(json_bytes) {
-        Some(info) => print!("{}", info.display()),
+        // Intentional: displaying agent system info (hostname, user, etc.) to the
+        // operator is the core purpose of this reconnaissance feature.
+        Some(info) => print!("{}", info.display()), // lgtm[rust/log-sensitive-data]
         None => error!("Failed to parse system info"),
     }
 }
