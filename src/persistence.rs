@@ -1,6 +1,6 @@
 use crate::error::*;
+use crate::sysinfo::{escape_json, extract_json_number, extract_json_string};
 use log::info;
-use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -15,30 +15,27 @@ pub struct PersistConfig {
 
 impl PersistConfig {
     pub fn to_json_string(&self) -> TshResult<String> {
-        let value = json!({
-            "psk": self.psk,
-            "port": self.port,
-            "connect_back_host": self.connect_back_host,
-            "delay": self.delay,
-        });
-        serde_json::to_string_pretty(&value)
-            .map_err(|e| TshError::system(format!("Failed to serialize config: {e}")))
+        let host = match &self.connect_back_host {
+            Some(h) => format!("\"{}\"", escape_json(h)),
+            None => "null".to_string(),
+        };
+        Ok(format!(
+            "{{\n  \"psk\": \"{}\",\n  \"port\": {},\n  \"connect_back_host\": {},\n  \"delay\": {}\n}}",
+            escape_json(&self.psk),
+            self.port,
+            host,
+            self.delay,
+        ))
     }
 
     pub fn from_json_str(s: &str) -> TshResult<Self> {
-        let v: Value = serde_json::from_str(s)
-            .map_err(|e| TshError::system(format!("Failed to parse config: {e}")))?;
         Ok(Self {
-            psk: v["psk"]
-                .as_str()
-                .ok_or_else(|| TshError::system("Missing 'psk' field"))?
-                .to_string(),
-            port: v["port"]
-                .as_u64()
+            psk: extract_json_string(s, "psk")
+                .ok_or_else(|| TshError::system("Missing 'psk' field"))?,
+            port: extract_json_number(s, "port")
                 .ok_or_else(|| TshError::system("Missing 'port' field"))? as u16,
-            connect_back_host: v["connect_back_host"].as_str().map(|s| s.to_string()),
-            delay: v["delay"]
-                .as_u64()
+            connect_back_host: extract_json_string(s, "connect_back_host"),
+            delay: extract_json_number(s, "delay")
                 .ok_or_else(|| TshError::system("Missing 'delay' field"))?,
         })
     }

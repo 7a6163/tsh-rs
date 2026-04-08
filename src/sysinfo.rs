@@ -1,4 +1,3 @@
-use serde_json::{json, Value};
 use std::env;
 
 #[derive(Debug)]
@@ -30,30 +29,31 @@ impl SystemInfo {
     }
 
     pub fn to_json_bytes(&self) -> Vec<u8> {
-        let value = json!({
-            "hostname": self.hostname,
-            "os": self.os,
-            "arch": self.arch,
-            "username": self.username,
-            "home_dir": self.home_dir,
-            "current_dir": self.current_dir,
-            "pid": self.pid,
-            "is_elevated": self.is_elevated,
-        });
-        serde_json::to_vec(&value).unwrap_or_default()
+        let json = format!(
+            r#"{{"hostname":"{}","os":"{}","arch":"{}","username":"{}","home_dir":"{}","current_dir":"{}","pid":{},"is_elevated":{}}}"#,
+            escape_json(&self.hostname),
+            escape_json(&self.os),
+            escape_json(&self.arch),
+            escape_json(&self.username),
+            escape_json(&self.home_dir),
+            escape_json(&self.current_dir),
+            self.pid,
+            self.is_elevated,
+        );
+        json.into_bytes()
     }
 
     pub fn from_json_bytes(bytes: &[u8]) -> Option<Self> {
-        let v: Value = serde_json::from_slice(bytes).ok()?;
+        let s = std::str::from_utf8(bytes).ok()?;
         Some(Self {
-            hostname: v["hostname"].as_str()?.to_string(),
-            os: v["os"].as_str()?.to_string(),
-            arch: v["arch"].as_str()?.to_string(),
-            username: v["username"].as_str()?.to_string(),
-            home_dir: v["home_dir"].as_str()?.to_string(),
-            current_dir: v["current_dir"].as_str()?.to_string(),
-            pid: v["pid"].as_u64()? as u32,
-            is_elevated: v["is_elevated"].as_bool()?,
+            hostname: extract_json_string(s, "hostname")?,
+            os: extract_json_string(s, "os")?,
+            arch: extract_json_string(s, "arch")?,
+            username: extract_json_string(s, "username")?,
+            home_dir: extract_json_string(s, "home_dir")?,
+            current_dir: extract_json_string(s, "current_dir")?,
+            pid: extract_json_number(s, "pid")? as u32,
+            is_elevated: extract_json_bool(s, "is_elevated")?,
         })
     }
 
@@ -84,6 +84,71 @@ impl SystemInfo {
         )
     }
 }
+
+// ─── Minimal JSON helpers (no serde dependency) ─────────────────────────────
+
+pub fn escape_json(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+pub fn extract_json_string(json: &str, key: &str) -> Option<String> {
+    let pattern = format!("\"{}\":", key);
+    let after_colon = json.find(&pattern)? + pattern.len();
+    let rest = json[after_colon..].trim_start();
+    if !rest.starts_with('"') {
+        return None; // null or non-string
+    }
+    let rest = &rest[1..]; // skip opening quote
+    let mut end = 0;
+    let mut escaped = false;
+    for ch in rest.chars() {
+        if escaped {
+            escaped = false;
+        } else if ch == '\\' {
+            escaped = true;
+        } else if ch == '"' {
+            break;
+        }
+        end += ch.len_utf8();
+    }
+    Some(
+        rest[..end]
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\t", "\t"),
+    )
+}
+
+pub fn extract_json_number(json: &str, key: &str) -> Option<u64> {
+    let pattern = format!("\"{}\":", key);
+    let start = json.find(&pattern)? + pattern.len();
+    let rest = json[start..].trim_start();
+    let end = rest
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(rest.len());
+    rest[..end].parse().ok()
+}
+
+pub fn extract_json_bool(json: &str, key: &str) -> Option<bool> {
+    let pattern = format!("\"{}\":", key);
+    let start = json.find(&pattern)? + pattern.len();
+    let rest = json[start..].trim_start();
+    if rest.starts_with("true") {
+        Some(true)
+    } else if rest.starts_with("false") {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+// ─── Platform-specific helpers ──────────────────────────────────────────────
 
 fn get_hostname() -> String {
     #[cfg(unix)]

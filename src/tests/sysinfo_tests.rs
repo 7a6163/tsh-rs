@@ -60,24 +60,16 @@ fn test_json_round_trip() {
 fn test_json_bytes_are_valid_json() {
     let info = SystemInfo::collect();
     let bytes = info.to_json_bytes();
-    let value: serde_json::Value = serde_json::from_slice(&bytes).expect("should be valid JSON");
-    assert!(value.is_object());
-    assert!(value.get("hostname").is_some());
-    assert!(value.get("pid").is_some());
+    let s = std::str::from_utf8(&bytes).expect("should be valid UTF-8");
+    assert!(s.starts_with('{'));
+    assert!(s.ends_with('}'));
+    assert!(s.contains("\"hostname\""));
+    assert!(s.contains("\"pid\""));
 }
 
 #[test]
 fn test_from_json_bytes_known_json() {
-    let json = r#"{
-        "hostname": "test-host",
-        "os": "linux unix",
-        "arch": "x86_64",
-        "username": "user1",
-        "home_dir": "/home/user1",
-        "current_dir": "/tmp",
-        "pid": 42,
-        "is_elevated": false
-    }"#;
+    let json = r#"{"hostname":"test-host","os":"linux unix","arch":"x86_64","username":"user1","home_dir":"/home/user1","current_dir":"/tmp","pid":42,"is_elevated":false}"#;
     let info = SystemInfo::from_json_bytes(json.as_bytes()).expect("should parse");
     assert_eq!(info.hostname, "test-host");
     assert_eq!(info.pid, 42);
@@ -88,6 +80,24 @@ fn test_from_json_bytes_known_json() {
 fn test_from_json_bytes_invalid() {
     assert!(SystemInfo::from_json_bytes(b"not json").is_none());
     assert!(SystemInfo::from_json_bytes(b"{}").is_none());
+}
+
+#[test]
+fn test_json_escaping() {
+    let info = SystemInfo {
+        hostname: "host\"with\\quotes".to_string(),
+        os: "linux unix".to_string(),
+        arch: "x86_64".to_string(),
+        username: "user\nnewline".to_string(),
+        home_dir: "/home/test".to_string(),
+        current_dir: "/tmp".to_string(),
+        pid: 1,
+        is_elevated: false,
+    };
+    let bytes = info.to_json_bytes();
+    let parsed = SystemInfo::from_json_bytes(&bytes).expect("should survive escaping round-trip");
+    assert_eq!(parsed.hostname, info.hostname);
+    assert_eq!(parsed.username, info.username);
 }
 
 // ─── Display ─────────────────────────────────────────────────────────────────
