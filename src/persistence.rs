@@ -2,7 +2,7 @@ use crate::error::*;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Configuration stored on disk for persistence (chmod 600)
 #[derive(Debug, Serialize, Deserialize)]
@@ -113,14 +113,14 @@ fn binary_name() -> &'static str {
 // --- Unix permissions ---
 
 #[cfg(unix)]
-fn set_executable(path: &PathBuf) -> TshResult<()> {
+fn set_executable(path: &Path) -> TshResult<()> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(0o755))
         .map_err(|e| TshError::system(format!("Failed to set executable permission: {e}")))
 }
 
 #[cfg(unix)]
-fn set_owner_only_permissions(path: &PathBuf) -> TshResult<()> {
+fn set_owner_only_permissions(path: &Path) -> TshResult<()> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(0o600))
         .map_err(|e| TshError::system(format!("Failed to set file permissions: {e}")))
@@ -138,7 +138,7 @@ fn get_launchagent_path() -> TshResult<PathBuf> {
 }
 
 #[cfg(target_os = "macos")]
-fn register_autostart(binary_path: &PathBuf, config_path: &PathBuf) -> TshResult<()> {
+fn register_autostart(binary_path: &Path, config_path: &Path) -> TshResult<()> {
     let plist_path = get_launchagent_path()?;
 
     // Ensure LaunchAgents directory exists
@@ -210,7 +210,7 @@ fn get_service_path() -> TshResult<PathBuf> {
 }
 
 #[cfg(target_os = "linux")]
-fn register_autostart(binary_path: &PathBuf, config_path: &PathBuf) -> TshResult<()> {
+fn register_autostart(binary_path: &Path, config_path: &Path) -> TshResult<()> {
     let service_path = get_service_path()?;
 
     if let Some(parent) = service_path.parent() {
@@ -268,7 +268,7 @@ fn unregister_autostart() -> TshResult<()> {
 // --- Windows: Registry Run key ---
 
 #[cfg(target_os = "windows")]
-fn register_autostart(binary_path: &PathBuf, config_path: &PathBuf) -> TshResult<()> {
+fn register_autostart(binary_path: &Path, config_path: &Path) -> TshResult<()> {
     let command = format!(
         "\"{}\" server --config \"{}\"",
         binary_path.display(),

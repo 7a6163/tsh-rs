@@ -83,9 +83,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for WsByteStream<S> {
                 }
                 _ => Poll::Ready(Ok(())),
             },
-            Poll::Ready(Some(Err(e))) => {
-                Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e)))
-            }
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Err(std::io::Error::other(e))),
             Poll::Ready(None) => Poll::Ready(Ok(())), // Stream ended
             Poll::Pending => Poll::Pending,
         }
@@ -98,15 +96,13 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for WsByteStream<S> {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
-        let msg = Message::Binary(buf.to_vec().into());
+        let msg = Message::Binary(buf.to_vec());
         match self.ws.poll_ready_unpin(cx) {
             Poll::Ready(Ok(())) => match self.ws.start_send_unpin(msg) {
                 Ok(()) => Poll::Ready(Ok(buf.len())),
-                Err(e) => Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e))),
+                Err(e) => Poll::Ready(Err(std::io::Error::other(e))),
             },
-            Poll::Ready(Err(e)) => {
-                Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e)))
-            }
+            Poll::Ready(Err(e)) => Poll::Ready(Err(std::io::Error::other(e))),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -114,9 +110,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for WsByteStream<S> {
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.ws.poll_flush_unpin(cx) {
             Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
-            Poll::Ready(Err(e)) => {
-                Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e)))
-            }
+            Poll::Ready(Err(e)) => Poll::Ready(Err(std::io::Error::other(e))),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -124,9 +118,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for WsByteStream<S> {
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.ws.poll_close_unpin(cx) {
             Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
-            Poll::Ready(Err(e)) => {
-                Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e)))
-            }
+            Poll::Ready(Err(e)) => Poll::Ready(Err(std::io::Error::other(e))),
             Poll::Pending => Poll::Pending,
         }
     }

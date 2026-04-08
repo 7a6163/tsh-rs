@@ -71,7 +71,7 @@ fn test_jitter_delay_4() {
     // delay=4 → jitter_range=1 → range: 3..=5
     for _ in 0..100 {
         let j = compute_jittered_delay(4);
-        assert!(j >= 3 && j <= 5, "got {j} for delay=4");
+        assert!((3..=5).contains(&j), "got {j} for delay=4");
     }
 }
 
