@@ -232,8 +232,7 @@ pub async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshR
                 OperationMode::Socks5 => {
                     info!("SOCKS5 proxy request");
                     if n > 1 {
-                        crate::socks5::handle_socks5_server(&mut layer, &buffer[1..n])
-                            .await
+                        crate::socks5::handle_socks5_server(&mut layer, &buffer[1..n]).await
                     } else {
                         Err(TshError::protocol("SOCKS5 request missing target address"))
                     }

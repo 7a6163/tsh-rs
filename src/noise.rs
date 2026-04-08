@@ -134,10 +134,7 @@ impl NoiseLayer {
     }
 
     /// Perform Noise handshake + PSK auth over any async stream
-    pub async fn connect_with_stream(
-        stream: Box<dyn AsyncStream>,
-        psk: &str,
-    ) -> TshResult<Self> {
+    pub async fn connect_with_stream(stream: Box<dyn AsyncStream>, psk: &str) -> TshResult<Self> {
         // Create initiator with static key
         let builder = Builder::new(NOISE_PATTERN.parse().unwrap());
         let keypair = builder

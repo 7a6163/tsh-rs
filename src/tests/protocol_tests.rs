@@ -16,14 +16,8 @@ async fn test_operation_mode_serialization() {
         OperationMode::try_from(4).unwrap(),
         OperationMode::RunCommand
     );
-    assert_eq!(
-        OperationMode::try_from(5).unwrap(),
-        OperationMode::SysInfo
-    );
-    assert_eq!(
-        OperationMode::try_from(6).unwrap(),
-        OperationMode::Socks5
-    );
+    assert_eq!(OperationMode::try_from(5).unwrap(), OperationMode::SysInfo);
+    assert_eq!(OperationMode::try_from(6).unwrap(), OperationMode::Socks5);
     assert!(OperationMode::try_from(0).is_err());
     assert!(OperationMode::try_from(7).is_err());
     assert!(OperationMode::try_from(255).is_err());

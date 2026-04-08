@@ -34,7 +34,11 @@ impl SystemInfo {
     }
 
     pub fn display(&self) -> String {
-        let privilege = if self.is_elevated { "root/admin" } else { "normal" };
+        let privilege = if self.is_elevated {
+            "root/admin"
+        } else {
+            "normal"
+        };
         format!(
             "\n--- Agent System Info ---\n\
              Hostname : {}\n\

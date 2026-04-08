@@ -65,13 +65,11 @@ impl TargetAddr {
 
 /// Start a local SOCKS5 proxy that tunnels through the Noise connection to the agent.
 /// Each incoming SOCKS5 connection opens a new Noise session to the server.
-pub async fn run_socks5_client(
-    local_bind: &str,
-    server_addr: &str,
-    psk: &str,
-) -> TshResult<()> {
+pub async fn run_socks5_client(local_bind: &str, server_addr: &str, psk: &str) -> TshResult<()> {
     let listener = TcpListener::bind(local_bind).await.map_err(|e| {
-        TshError::network(format!("Failed to bind SOCKS5 listener on {local_bind}: {e}"))
+        TshError::network(format!(
+            "Failed to bind SOCKS5 listener on {local_bind}: {e}"
+        ))
     })?;
 
     println!("SOCKS5 proxy listening on {local_bind}");
@@ -79,9 +77,10 @@ pub async fn run_socks5_client(
     println!("  Configure your tools: --proxy socks5://127.0.0.1:1080");
 
     loop {
-        let (stream, peer) = listener.accept().await.map_err(|e| {
-            TshError::network(format!("Failed to accept SOCKS5 connection: {e}"))
-        })?;
+        let (stream, peer) = listener
+            .accept()
+            .await
+            .map_err(|e| TshError::network(format!("Failed to accept SOCKS5 connection: {e}")))?;
 
         let server_addr = server_addr.to_string();
         let psk = psk.to_string();
@@ -220,8 +219,7 @@ async fn socks5_read_connect(stream: &mut TcpStream) -> TshResult<TargetAddr> {
             stream.read_exact(&mut len_buf).await?;
             let mut domain = vec![0u8; len_buf[0] as usize];
             stream.read_exact(&mut domain).await?;
-            String::from_utf8(domain)
-                .map_err(|_| TshError::protocol("Invalid domain name"))?
+            String::from_utf8(domain).map_err(|_| TshError::protocol("Invalid domain name"))?
         }
         ATYP_IPV6 => {
             let mut addr = [0u8; 16];

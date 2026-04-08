@@ -135,8 +135,7 @@ async fn main() -> TshResult<()> {
                         .get_one::<String>("psk")
                         .ok_or_else(|| TshError::protocol("--psk is required"))?
                         .clone();
-                    let connect_back =
-                        sub_matches.get_one::<String>("connect-back").cloned();
+                    let connect_back = sub_matches.get_one::<String>("connect-back").cloned();
                     let delay: u64 = sub_matches
                         .get_one::<String>("delay")
                         .unwrap()

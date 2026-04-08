@@ -10,7 +10,10 @@ fn test_collect_returns_non_empty_fields() {
     assert!(!info.arch.is_empty(), "arch should not be empty");
     assert!(!info.username.is_empty(), "username should not be empty");
     assert!(!info.home_dir.is_empty(), "home_dir should not be empty");
-    assert!(!info.current_dir.is_empty(), "current_dir should not be empty");
+    assert!(
+        !info.current_dir.is_empty(),
+        "current_dir should not be empty"
+    );
     assert!(info.pid > 0, "pid should be > 0");
 }
 
@@ -58,8 +61,7 @@ fn test_json_round_trip() {
 fn test_json_bytes_are_valid_json() {
     let info = SystemInfo::collect();
     let bytes = info.to_json_bytes();
-    let value: serde_json::Value =
-        serde_json::from_slice(&bytes).expect("should be valid JSON");
+    let value: serde_json::Value = serde_json::from_slice(&bytes).expect("should be valid JSON");
     assert!(value.is_object());
     assert!(value.get("hostname").is_some());
     assert!(value.get("pid").is_some());
@@ -102,7 +104,10 @@ fn test_display_contains_all_fields() {
     assert!(output.contains("linux unix"), "should contain os");
     assert!(output.contains("x86_64"), "should contain arch");
     assert!(output.contains("root"), "should contain username");
-    assert!(output.contains("root/admin"), "elevated user should show root/admin");
+    assert!(
+        output.contains("root/admin"),
+        "elevated user should show root/admin"
+    );
     assert!(output.contains("1234"), "should contain pid");
 }
 

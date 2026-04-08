@@ -357,15 +357,14 @@ async fn handle_reverse_shell_client(layer: &mut NoiseLayer) -> TshResult<()> {
     result
 }
 
-async fn handle_connect_back_operations(
-    layer: &mut NoiseLayer,
-    actions: &[&str],
-) -> TshResult<()> {
+async fn handle_connect_back_operations(layer: &mut NoiseLayer, actions: &[&str]) -> TshResult<()> {
     loop {
         let mut buf = vec![0u8; 8192];
         let n = layer.read(&mut buf).await?;
         if n == 0 {
-            return Err(TshError::protocol("Server disconnected before sending operation mode"));
+            return Err(TshError::protocol(
+                "Server disconnected before sending operation mode",
+            ));
         }
 
         let mode = OperationMode::try_from(buf[0]).map_err(TshError::InvalidOperationMode)?;

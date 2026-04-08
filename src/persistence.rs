@@ -131,7 +131,10 @@ fn set_owner_only_permissions(path: &PathBuf) -> TshResult<()> {
 #[cfg(target_os = "macos")]
 fn get_launchagent_path() -> TshResult<PathBuf> {
     let home = home_dir()?;
-    Ok(home.join("Library").join("LaunchAgents").join("com.user.tsh.plist"))
+    Ok(home
+        .join("Library")
+        .join("LaunchAgents")
+        .join("com.user.tsh.plist"))
 }
 
 #[cfg(target_os = "macos")]
@@ -317,12 +320,16 @@ fn unregister_autostart() -> TshResult<()> {
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 fn register_autostart(_binary_path: &PathBuf, _config_path: &PathBuf) -> TshResult<()> {
-    Err(TshError::system("Persistence not supported on this platform"))
+    Err(TshError::system(
+        "Persistence not supported on this platform",
+    ))
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 fn unregister_autostart() -> TshResult<()> {
-    Err(TshError::system("Persistence not supported on this platform"))
+    Err(TshError::system(
+        "Persistence not supported on this platform",
+    ))
 }
 
 /// Load PersistConfig from a config file path
