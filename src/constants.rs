@@ -8,6 +8,8 @@ pub enum OperationMode {
     PutFile = 2,
     RunShell = 3,
     RunCommand = 4,
+    SysInfo = 5,
+    Socks5 = 6,
 }
 
 impl TryFrom<u8> for OperationMode {
@@ -19,6 +21,8 @@ impl TryFrom<u8> for OperationMode {
             2 => Ok(OperationMode::PutFile),
             3 => Ok(OperationMode::RunShell),
             4 => Ok(OperationMode::RunCommand),
+            5 => Ok(OperationMode::SysInfo),
+            6 => Ok(OperationMode::Socks5),
             other => Err(other),
         }
     }

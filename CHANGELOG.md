@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-04-08
+
+**Evasion, Reconnaissance & Pivoting**
+
+### ✨ Added
+- **Jitter**: Connect-back delay randomized ±25% to defeat EDR beaconing detection
+- **System info collection**: Agent reports hostname, OS, arch, user, privileges on connect (`sysinfo` action)
+- **Persistence**: Auto-start on reboot via LaunchAgent (macOS), systemd user service (Linux), Registry Run key (Windows). Install with `--install`, remove with `--uninstall`
+- **SOCKS5 proxy**: Pivot into internal networks through the agent (`socks5` action). Each SOCKS5 connection gets its own encrypted Noise session
+- **C2 over WebSocket**: New `--transport https` flag routes all traffic through WebSocket frames, blending with normal HTTP/HTTPS traffic
+- **Config file support**: `--config` flag loads PSK and connection settings from a JSON file (used by persistence)
+
+### 🏗️ Changed
+- **NoiseLayer abstracted**: `stream` field changed from `TcpStream` to `Box<dyn AsyncStream>`, enabling any async transport (TCP, WebSocket, etc.)
+- `--psk` is no longer required when using `--config` or `--uninstall`
+- `handle_client_connection` is now public for use by alternative transports
+
+### 🧪 Tests
+- Added 39 new tests (111 → 150 total)
+  - `jitter_tests` (7): Boundary values, range validation, distribution
+  - `sysinfo_tests` (8): Collection, JSON round-trip, display formatting
+  - `persistence_tests` (8): Config serialization, load/save, error cases
+  - `socks5_tests` (13): TargetAddr wire format, round-trip, error handling
+  - `c2_https_tests` (3): WsByteStream adapter with echo, multiple messages, large payloads
+
+### 📦 Dependencies
+- Added `tokio-tungstenite` 0.24 (WebSocket transport)
+- Added `futures-util` 0.3 (async stream utilities)
+
 ## [1.2.1] - 2025-08-13
 
 ### 🔐 Security

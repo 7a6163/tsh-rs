@@ -1,9 +1,14 @@
+pub mod c2_https_tests;
 pub mod client_tests;
 pub mod error_tests;
 pub mod integration_tests;
+pub mod jitter_tests;
 pub mod noise_tests;
+pub mod persistence_tests;
 pub mod protocol_tests;
 pub mod pty_tests;
 pub mod server_handler_tests;
 pub mod server_tests;
+pub mod socks5_tests;
+pub mod sysinfo_tests;
 pub mod terminal_tests;

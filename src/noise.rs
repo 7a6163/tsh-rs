@@ -1,7 +1,7 @@
 use crate::{constants::*, error::*};
 use snow::{Builder, HandshakeState, TransportState};
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 
@@ -15,9 +15,13 @@ const NOISE_PATTERN: &str = "Noise_XX_25519_ChaChaPoly_BLAKE2s";
 // Maximum message size for Noise (64KB - overhead)
 const MAX_MESSAGE_SIZE: usize = 65535 - 16;
 
-/// Noise Protocol Layer - provides encrypted communication over TCP
+/// Trait alias for any async byte stream (TCP, WebSocket adapter, etc.)
+pub trait AsyncStream: AsyncRead + AsyncWrite + Unpin + Send {}
+impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncStream for T {}
+
+/// Noise Protocol Layer - provides encrypted communication over any async stream
 pub struct NoiseLayer {
-    stream: TcpStream,
+    stream: Box<dyn AsyncStream>,
     transport: TransportState,
 }
 
@@ -68,9 +72,26 @@ impl NoiseListener {
             .map_err(|e| TshError::encryption(format!("Failed to build responder: {e}")))?;
 
         // Perform Noise handshake
-        let mut layer = perform_handshake_responder(stream, handshake).await?;
+        let mut layer = perform_handshake_responder(Box::new(stream), handshake).await?;
 
         // Perform PSK authentication over the encrypted channel
+        if !perform_psk_auth_server(&mut layer, &self.psk).await? {
+            return Err(TshError::protocol("PSK authentication failed"));
+        }
+
+        Ok(layer)
+    }
+
+    /// Accept a Noise handshake + PSK auth over any async stream (for WebSocket etc.)
+    pub async fn accept_stream(&self, stream: Box<dyn AsyncStream>) -> TshResult<NoiseLayer> {
+        let builder = Builder::new(NOISE_PATTERN.parse().unwrap());
+        let handshake = builder
+            .local_private_key(&self.static_key)
+            .build_responder()
+            .map_err(|e| TshError::encryption(format!("Failed to build responder: {e}")))?;
+
+        let mut layer = perform_handshake_responder(stream, handshake).await?;
+
         if !perform_psk_auth_server(&mut layer, &self.psk).await? {
             return Err(TshError::protocol("PSK authentication failed"));
         }
@@ -89,16 +110,34 @@ impl NoiseListener {
     pub fn public_key(&self) -> TshResult<Vec<u8>> {
         Ok(self.public_key.clone())
     }
+
+    /// Get the static private key (for creating responders in other transports)
+    pub fn static_key(&self) -> &[u8] {
+        &self.static_key
+    }
+
+    /// Get the PSK
+    pub fn psk(&self) -> &str {
+        &self.psk
+    }
 }
 
 impl NoiseLayer {
-    /// Connect to a remote address and perform Noise handshake + PSK auth
+    /// Connect to a remote address via TCP and perform Noise handshake + PSK auth
     pub async fn connect(address: &str, psk: &str) -> TshResult<Self> {
         let stream = timeout(Duration::from_secs(5), TcpStream::connect(address))
             .await
             .map_err(|_| TshError::Timeout)?
             .map_err(|e| TshError::network(format!("Failed to connect to {address}: {e}")))?;
 
+        Self::connect_with_stream(Box::new(stream), psk).await
+    }
+
+    /// Perform Noise handshake + PSK auth over any async stream
+    pub async fn connect_with_stream(
+        stream: Box<dyn AsyncStream>,
+        psk: &str,
+    ) -> TshResult<Self> {
         // Create initiator with static key
         let builder = Builder::new(NOISE_PATTERN.parse().unwrap());
         let keypair = builder
@@ -199,7 +238,7 @@ impl NoiseLayer {
 
 /// Perform Noise handshake as initiator (XX pattern)
 pub async fn perform_handshake_initiator(
-    mut stream: TcpStream,
+    mut stream: Box<dyn AsyncStream>,
     mut handshake: HandshakeState,
 ) -> TshResult<NoiseLayer> {
     let timeout_duration = Duration::from_secs(HANDSHAKE_RW_TIMEOUT);
@@ -246,7 +285,7 @@ pub async fn perform_handshake_initiator(
 
 /// Perform Noise handshake as responder (XX pattern)
 pub async fn perform_handshake_responder(
-    mut stream: TcpStream,
+    mut stream: Box<dyn AsyncStream>,
     mut handshake: HandshakeState,
 ) -> TshResult<NoiseLayer> {
     let timeout_duration = Duration::from_secs(HANDSHAKE_RW_TIMEOUT);
