@@ -96,7 +96,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for WsByteStream<S> {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
-        let msg = Message::Binary(buf.to_vec());
+        let msg = Message::Binary(buf.to_vec().into());
         match self.ws.poll_ready_unpin(cx) {
             Poll::Ready(Ok(())) => match self.ws.start_send_unpin(msg) {
                 Ok(()) => Poll::Ready(Ok(buf.len())),
@@ -235,7 +235,7 @@ pub async fn run_ws_connect_back(url: &str, port: u16, delay: u64, psk: &str) ->
         use rand::Rng;
         let jitter_range = delay / 4;
         let jittered_delay = if jitter_range > 0 {
-            let offset = rand::thread_rng().gen_range(0..=jitter_range * 2);
+            let offset = rand::rng().random_range(0..=jitter_range * 2);
             delay.saturating_sub(jitter_range) + offset
         } else {
             delay

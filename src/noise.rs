@@ -345,8 +345,8 @@ async fn perform_psk_auth_server(layer: &mut NoiseLayer, psk: &str) -> TshResult
     // Generate challenge
     use rand::Rng;
     let challenge: [u8; 32] = {
-        let mut rng = rand::thread_rng();
-        rng.gen()
+        let mut rng = rand::rng();
+        rng.random()
     };
 
     // Send challenge

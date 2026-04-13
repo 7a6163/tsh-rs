@@ -5,7 +5,7 @@ use std::collections::HashSet;
 fn compute_jittered_delay(delay: u64) -> u64 {
     let jitter_range = delay / 4;
     if jitter_range > 0 {
-        let offset = rand::thread_rng().gen_range(0..=jitter_range * 2);
+        let offset = rand::rng().random_range(0..=jitter_range * 2);
         delay.saturating_sub(jitter_range) + offset
     } else {
         delay
