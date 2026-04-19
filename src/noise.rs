@@ -133,6 +133,27 @@ impl NoiseLayer {
         Self::connect_with_stream(Box::new(stream), psk).await
     }
 
+    /// Accept a Noise handshake + PSK auth over any async stream (responder side).
+    /// Used by the WS listener so it acts as Noise XX responder, not initiator.
+    pub async fn accept_stream(stream: Box<dyn AsyncStream>, psk: &str) -> TshResult<Self> {
+        let builder = Builder::new(NOISE_PATTERN.parse().unwrap());
+        let keypair = builder
+            .generate_keypair()
+            .map_err(|e| TshError::encryption(format!("Failed to generate keypair: {e}")))?;
+        let handshake = builder
+            .local_private_key(&keypair.private)
+            .build_responder()
+            .map_err(|e| TshError::encryption(format!("Failed to build responder: {e}")))?;
+
+        let mut layer = perform_handshake_responder(stream, handshake).await?;
+
+        if !perform_psk_auth_server(&mut layer, psk).await? {
+            return Err(TshError::protocol("PSK authentication failed"));
+        }
+
+        Ok(layer)
+    }
+
     /// Perform Noise handshake + PSK auth over any async stream
     pub async fn connect_with_stream(stream: Box<dyn AsyncStream>, psk: &str) -> TshResult<Self> {
         // Create initiator with static key
@@ -246,19 +267,31 @@ pub async fn perform_handshake_initiator(
     let len = handshake
         .write_message(&[], &mut msg)
         .map_err(|e| TshError::encryption(format!("Handshake write failed: {e}")))?;
-
+    let len_u16 = (len as u16).to_be_bytes();
+    timeout(timeout_duration, stream.write_all(&len_u16))
+        .await
+        .map_err(|_| TshError::Timeout)?
+        .map_err(TshError::Io)?;
     timeout(timeout_duration, stream.write_all(&msg[..len]))
         .await
         .map_err(|_| TshError::Timeout)?
         .map_err(TshError::Io)?;
 
     // <- e, ee, s, es
-    let n = timeout(timeout_duration, stream.read(&mut buf))
+    let mut len_buf = [0u8; 2];
+    timeout(timeout_duration, stream.read_exact(&mut len_buf))
         .await
         .map_err(|_| TshError::Timeout)?
         .map_err(TshError::Io)?;
-
-    let _len = handshake
+    let n = u16::from_be_bytes(len_buf) as usize;
+    if n > buf.len() {
+        return Err(TshError::encryption("Handshake message too large"));
+    }
+    timeout(timeout_duration, stream.read_exact(&mut buf[..n]))
+        .await
+        .map_err(|_| TshError::Timeout)?
+        .map_err(TshError::Io)?;
+    handshake
         .read_message(&buf[..n], &mut msg)
         .map_err(|e| TshError::encryption(format!("Handshake read failed: {e}")))?;
 
@@ -266,7 +299,11 @@ pub async fn perform_handshake_initiator(
     let len = handshake
         .write_message(&[], &mut msg)
         .map_err(|e| TshError::encryption(format!("Handshake write failed: {e}")))?;
-
+    let len_u16 = (len as u16).to_be_bytes();
+    timeout(timeout_duration, stream.write_all(&len_u16))
+        .await
+        .map_err(|_| TshError::Timeout)?
+        .map_err(TshError::Io)?;
     timeout(timeout_duration, stream.write_all(&msg[..len]))
         .await
         .map_err(|_| TshError::Timeout)?
@@ -290,12 +327,20 @@ pub async fn perform_handshake_responder(
     let mut msg = vec![0u8; 65535];
 
     // -> e
-    let n = timeout(timeout_duration, stream.read(&mut buf))
+    let mut len_buf = [0u8; 2];
+    timeout(timeout_duration, stream.read_exact(&mut len_buf))
         .await
         .map_err(|_| TshError::Timeout)?
         .map_err(TshError::Io)?;
-
-    let _len = handshake
+    let n = u16::from_be_bytes(len_buf) as usize;
+    if n > buf.len() {
+        return Err(TshError::encryption("Handshake message too large"));
+    }
+    timeout(timeout_duration, stream.read_exact(&mut buf[..n]))
+        .await
+        .map_err(|_| TshError::Timeout)?
+        .map_err(TshError::Io)?;
+    handshake
         .read_message(&buf[..n], &mut msg)
         .map_err(|e| TshError::encryption(format!("Handshake read failed: {e}")))?;
 
@@ -303,19 +348,31 @@ pub async fn perform_handshake_responder(
     let len = handshake
         .write_message(&[], &mut msg)
         .map_err(|e| TshError::encryption(format!("Handshake write failed: {e}")))?;
-
+    let len_u16 = (len as u16).to_be_bytes();
+    timeout(timeout_duration, stream.write_all(&len_u16))
+        .await
+        .map_err(|_| TshError::Timeout)?
+        .map_err(TshError::Io)?;
     timeout(timeout_duration, stream.write_all(&msg[..len]))
         .await
         .map_err(|_| TshError::Timeout)?
         .map_err(TshError::Io)?;
 
     // -> s, se
-    let n = timeout(timeout_duration, stream.read(&mut buf))
+    let mut len_buf = [0u8; 2];
+    timeout(timeout_duration, stream.read_exact(&mut len_buf))
         .await
         .map_err(|_| TshError::Timeout)?
         .map_err(TshError::Io)?;
-
-    let _len = handshake
+    let n = u16::from_be_bytes(len_buf) as usize;
+    if n > buf.len() {
+        return Err(TshError::encryption("Handshake message too large"));
+    }
+    timeout(timeout_duration, stream.read_exact(&mut buf[..n]))
+        .await
+        .map_err(|_| TshError::Timeout)?
+        .map_err(TshError::Io)?;
+    handshake
         .read_message(&buf[..n], &mut msg)
         .map_err(|e| TshError::encryption(format!("Handshake read failed: {e}")))?;
 
@@ -376,6 +433,9 @@ async fn perform_psk_auth_server(layer: &mut NoiseLayer, psk: &str) -> TshResult
         .await
         .map_err(TshError::Io)?;
     let msg_len = u32::from_be_bytes(len_bytes) as usize;
+    if msg_len > MAX_MESSAGE_SIZE + 16 {
+        return Err(TshError::encryption("PSK auth response too large"));
+    }
 
     let mut encrypted = vec![0u8; msg_len];
     layer
@@ -430,6 +490,9 @@ async fn perform_psk_auth_client(layer: &mut NoiseLayer, psk: &str) -> TshResult
         .await
         .map_err(TshError::Io)?;
     let msg_len = u32::from_be_bytes(len_bytes) as usize;
+    if msg_len > MAX_MESSAGE_SIZE + 16 {
+        return Err(TshError::encryption("PSK auth challenge too large"));
+    }
 
     let mut encrypted = vec![0u8; msg_len];
     layer
@@ -474,6 +537,9 @@ async fn perform_psk_auth_client(layer: &mut NoiseLayer, psk: &str) -> TshResult
         .await
         .map_err(TshError::Io)?;
     let msg_len = u32::from_be_bytes(len_bytes) as usize;
+    if msg_len > MAX_MESSAGE_SIZE + 16 {
+        return Err(TshError::encryption("PSK auth result too large"));
+    }
 
     let mut encrypted = vec![0u8; msg_len];
     layer

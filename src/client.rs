@@ -437,10 +437,15 @@ async fn execute_command(layer: &mut NoiseLayer, command: &str) -> TshResult<()>
     layer.read_exact(&mut exit_code_buf).await?;
     let exit_code = exit_code_buf[0];
 
+    const MAX_CMD_OUTPUT: usize = 64 * 1024 * 1024; // 64 MB
+
     // Read stdout length and data
     let mut stdout_len_buf = [0u8; 4];
     layer.read_exact(&mut stdout_len_buf).await?;
     let stdout_len = u32::from_be_bytes(stdout_len_buf) as usize;
+    if stdout_len > MAX_CMD_OUTPUT {
+        return Err(TshError::protocol("Command stdout too large"));
+    }
 
     if stdout_len > 0 {
         let mut stdout_data = vec![0u8; stdout_len];
@@ -452,6 +457,9 @@ async fn execute_command(layer: &mut NoiseLayer, command: &str) -> TshResult<()>
     let mut stderr_len_buf = [0u8; 4];
     layer.read_exact(&mut stderr_len_buf).await?;
     let stderr_len = u32::from_be_bytes(stderr_len_buf) as usize;
+    if stderr_len > MAX_CMD_OUTPUT {
+        return Err(TshError::protocol("Command stderr too large"));
+    }
 
     if stderr_len > 0 {
         let mut stderr_data = vec![0u8; stderr_len];

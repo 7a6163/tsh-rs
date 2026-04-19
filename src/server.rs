@@ -337,6 +337,28 @@ async fn handle_file_download(layer: &mut NoiseLayer) -> TshResult<()> {
 }
 
 async fn handle_file_download_common(layer: &mut NoiseLayer, file_path: &str) -> TshResult<()> {
+    // Resolve symlinks and verify the real path stays within CWD.
+    // canonicalize fails when the file doesn't exist — treat that as "not found" (size 0).
+    let cwd = std::env::current_dir()
+        .map_err(|e| TshError::system(format!("Failed to get current directory: {e}")))?;
+    match tokio::fs::canonicalize(file_path).await {
+        Ok(canonical) => {
+            let canonical_cwd = tokio::fs::canonicalize(&cwd)
+                .await
+                .map_err(|e| TshError::system(format!("Failed to canonicalize CWD: {e}")))?;
+            if !canonical.starts_with(&canonical_cwd) {
+                warn!("Symlink escape attempt blocked: {file_path}");
+                layer.write_all(&0u64.to_be_bytes()).await?;
+                return Ok(());
+            }
+        }
+        Err(_) => {
+            // File does not exist — protocol "not found" response
+            layer.write_all(&0u64.to_be_bytes()).await?;
+            return Ok(());
+        }
+    }
+
     // Try to open and send file
     match tokio::fs::File::open(file_path).await {
         Ok(mut file) => {
@@ -413,11 +435,20 @@ async fn handle_file_upload(layer: &mut NoiseLayer) -> TshResult<()> {
     handle_file_upload_common(layer, &file_path).await
 }
 
+const MAX_UPLOAD_BYTES: u64 = 1024 * 1024 * 1024; // 1 GB
+const MAX_CMD_OUTPUT: usize = 64 * 1024 * 1024; // 64 MB
+
 async fn handle_file_upload_common(layer: &mut NoiseLayer, file_path: &str) -> TshResult<()> {
     // Read file size
     let mut size_buf = [0u8; 8];
     layer.read_exact(&mut size_buf).await?;
     let file_size = u64::from_be_bytes(size_buf);
+
+    if file_size > MAX_UPLOAD_BYTES {
+        return Err(TshError::file_transfer(
+            "Upload size exceeds maximum (1 GB)",
+        ));
+    }
 
     info!("Expected file size: {file_size} bytes");
 
@@ -520,9 +551,20 @@ async fn send_command_result(
 ) -> TshResult<()> {
     match output {
         Ok(result) => {
+            let stdout = if result.stdout.len() > MAX_CMD_OUTPUT {
+                &result.stdout[..MAX_CMD_OUTPUT]
+            } else {
+                &result.stdout
+            };
+            let stderr = if result.stderr.len() > MAX_CMD_OUTPUT {
+                &result.stderr[..MAX_CMD_OUTPUT]
+            } else {
+                &result.stderr
+            };
+
             info!(
                 "Command executed, sending output ({} bytes)",
-                result.stdout.len() + result.stderr.len()
+                stdout.len() + stderr.len()
             );
 
             // Send exit code first (1 byte: 0 = success, 1 = failure)
@@ -530,17 +572,17 @@ async fn send_command_result(
             layer.write_all(&[exit_code]).await?;
 
             // Send stdout length and data
-            let stdout_len = result.stdout.len() as u32;
+            let stdout_len = stdout.len() as u32;
             layer.write_all(&stdout_len.to_be_bytes()).await?;
             if stdout_len > 0 {
-                layer.write_all(&result.stdout).await?;
+                layer.write_all(stdout).await?;
             }
 
             // Send stderr length and data
-            let stderr_len = result.stderr.len() as u32;
+            let stderr_len = stderr.len() as u32;
             layer.write_all(&stderr_len.to_be_bytes()).await?;
             if stderr_len > 0 {
-                layer.write_all(&result.stderr).await?;
+                layer.write_all(stderr).await?;
             }
 
             info!("Command output sent successfully");

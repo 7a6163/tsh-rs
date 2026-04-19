@@ -165,8 +165,8 @@ pub async fn run_ws_listener(port: u16, psk: &str) -> TshResult<()> {
             // Wrap WebSocket in byte stream adapter
             let byte_stream = WsByteStream::new(ws_stream);
 
-            // Perform Noise handshake over WebSocket
-            let layer = match NoiseLayer::connect_with_stream(Box::new(byte_stream), &psk).await {
+            // Perform Noise handshake as responder (agent is initiator)
+            let layer = match NoiseLayer::accept_stream(Box::new(byte_stream), &psk).await {
                 Ok(l) => l,
                 Err(e) => {
                     error!("Noise handshake failed for {peer}: {e}");

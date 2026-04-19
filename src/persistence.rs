@@ -59,14 +59,26 @@ pub fn install(config: &PersistConfig) -> TshResult<()> {
     #[cfg(unix)]
     set_executable(&binary_dest)?;
 
-    // Write config file (contains PSK, chmod 600)
+    // Write config file with mode 0o600 atomically — no world-readable window
     let config_path = install_dir.join("config.json");
     let config_json = config.to_json_string()?;
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&config_path)
+            .map_err(|e| TshError::system(format!("Failed to create config: {e}")))?;
+        file.write_all(config_json.as_bytes())
+            .map_err(|e| TshError::system(format!("Failed to write config: {e}")))?;
+    }
+    #[cfg(not(unix))]
     fs::write(&config_path, &config_json)
         .map_err(|e| TshError::system(format!("Failed to write config: {e}")))?;
-
-    #[cfg(unix)]
-    set_owner_only_permissions(&config_path)?;
 
     info!("Config written to {}", config_path.display());
 
@@ -144,13 +156,6 @@ fn set_executable(path: &Path) -> TshResult<()> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(0o755))
         .map_err(|e| TshError::system(format!("Failed to set executable permission: {e}")))
-}
-
-#[cfg(unix)]
-fn set_owner_only_permissions(path: &Path) -> TshResult<()> {
-    use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
-        .map_err(|e| TshError::system(format!("Failed to set file permissions: {e}")))
 }
 
 // --- macOS: LaunchAgent ---
@@ -252,7 +257,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart={binary} server --config {config}
+ExecStart="{binary}" server --config "{config}"
 Restart=always
 RestartSec=10
 
