@@ -285,6 +285,8 @@ async fn download_file(
         pb.set_position(downloaded);
     }
 
+    local_file.flush().await?;
+
     pb.finish_with_message("✅ Download complete");
     info!("📁 File downloaded to: {}", local_path.display());
     Ok(())
