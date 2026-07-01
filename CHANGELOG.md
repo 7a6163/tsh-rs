@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-07-01
+
+### 🔐 Security
+- Fixed 8 security vulnerabilities flagged by `cargo deny` and `cargo audit`
+- Upgraded `rand` to 0.9.3 and `tokio-tungstenite` to 0.26 to resolve RUSTSEC-2026-0097
+
+### 🐛 Fixed
+- Fixed file download producing empty files due to missing flush on `tokio::fs::File`
+
+### 🔧 Maintenance
+- Updated CodeQL action to v4
+- Updated README structure
+
 ## [1.3.0] - 2026-04-08
 
 **Evasion, Reconnaissance & Pivoting**
