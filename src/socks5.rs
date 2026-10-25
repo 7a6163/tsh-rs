@@ -7,12 +7,7 @@ use log::{error, info, warn};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::{
-    constants::OperationMode,
-    error::*,
-    helpers::NoiseLayerExt,
-    noise::NoiseLayer,
-};
+use crate::{constants::OperationMode, error::*, helpers::NoiseLayerExt, noise::NoiseLayer};
 
 // SOCKS5 constants
 const SOCKS_VERSION: u8 = 0x05;
@@ -326,4 +321,3 @@ async fn relay_data_server(stream: &mut TcpStream, layer: &mut NoiseLayer) -> Ts
 
     Ok(())
 }
-

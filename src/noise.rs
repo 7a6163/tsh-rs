@@ -95,7 +95,6 @@ impl NoiseListener {
     pub fn public_key(&self) -> TshResult<Vec<u8>> {
         Ok(self.public_key.clone())
     }
-
 }
 
 impl NoiseLayer {
