@@ -439,6 +439,31 @@ const MAX_UPLOAD_BYTES: u64 = 1024 * 1024 * 1024; // 1 GB
 const MAX_CMD_OUTPUT: usize = 64 * 1024 * 1024; // 64 MB
 
 async fn handle_file_upload_common(layer: &mut NoiseLayer, file_path: &str) -> TshResult<()> {
+    // Resolve symlinks on the parent directory and verify the target stays within CWD.
+    // The file itself may not exist yet, so canonicalize the parent.
+    let cwd = std::env::current_dir()
+        .map_err(|e| TshError::system(format!("Failed to get current directory: {e}")))?;
+    let canonical_cwd = tokio::fs::canonicalize(&cwd)
+        .await
+        .map_err(|e| TshError::system(format!("Failed to canonicalize CWD: {e}")))?;
+    let dest = Path::new(file_path);
+    let parent = dest.parent().unwrap_or(Path::new("."));
+    match tokio::fs::canonicalize(parent).await {
+        Ok(canonical_parent) => {
+            if !canonical_parent.starts_with(&canonical_cwd) {
+                warn!("Symlink escape attempt blocked on upload: {file_path}");
+                return Err(TshError::file_transfer(
+                    "Upload path escapes working directory",
+                ));
+            }
+        }
+        Err(e) => {
+            return Err(TshError::file_transfer(format!(
+                "Upload destination directory does not exist: {e}"
+            )));
+        }
+    }
+
     // Read file size
     let mut size_buf = [0u8; 8];
     layer.read_exact(&mut size_buf).await?;
