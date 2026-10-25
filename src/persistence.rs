@@ -76,7 +76,21 @@ pub fn install(config: &PersistConfig) -> TshResult<()> {
         file.write_all(config_json.as_bytes())
             .map_err(|e| TshError::system(format!("Failed to write config: {e}")))?;
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        fs::write(&config_path, &config_json)
+            .map_err(|e| TshError::system(format!("Failed to write config: {e}")))?;
+        // Restrict ACL to current user only (equivalent of chmod 600)
+        let _ = std::process::Command::new("icacls")
+            .args([
+                &config_path.to_string_lossy().to_string(),
+                "/inheritance:r",
+                "/grant:r",
+                &format!("{}:(R,W)", get_username_for_acl()),
+            ])
+            .output();
+    }
+    #[cfg(not(any(unix, windows)))]
     fs::write(&config_path, &config_json)
         .map_err(|e| TshError::system(format!("Failed to write config: {e}")))?;
 
@@ -136,6 +150,11 @@ fn home_dir() -> TshResult<PathBuf> {
     std::env::var(key)
         .map(PathBuf::from)
         .map_err(|_| TshError::system("Could not determine home directory"))
+}
+
+#[cfg(windows)]
+fn get_username_for_acl() -> String {
+    std::env::var("USERNAME").unwrap_or_else(|_| "CURRENT_USER".to_string())
 }
 
 fn binary_name() -> &'static str {

@@ -175,7 +175,7 @@ pub async fn run_ws_listener(port: u16, psk: &str) -> TshResult<()> {
             };
 
             // Handle like a normal client connection
-            if let Err(e) = crate::server::handle_client_connection(layer, &psk).await {
+            if let Err(e) = crate::server::handle_client_connection(layer).await {
                 error!("WS client handler error for {peer}: {e}");
             }
         });
@@ -216,8 +216,8 @@ pub async fn run_ws_connect_back(url: &str, port: u16, delay: u64, psk: &str) ->
                             continue;
                         }
 
-                        // Handle shell session (reuse existing server handler)
-                        if let Err(e) = crate::server::handle_client_connection(layer, psk).await {
+                        // Handle shell session (same as TCP connect-back)
+                        if let Err(e) = crate::server::handle_shell_mode(&mut layer).await {
                             error!("WS session error: {e}");
                         }
                     }

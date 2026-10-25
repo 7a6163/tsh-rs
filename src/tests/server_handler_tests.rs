@@ -14,7 +14,7 @@ async fn test_handler_command_execution() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -66,7 +66,7 @@ async fn test_handler_command_with_stderr() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -114,7 +114,7 @@ async fn test_handler_command_failing() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -168,7 +168,7 @@ async fn test_handler_file_download() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -214,7 +214,7 @@ async fn test_handler_file_download_not_found() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -249,7 +249,7 @@ async fn test_handler_file_upload() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -290,7 +290,7 @@ async fn test_handler_invalid_operation_mode() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -318,7 +318,7 @@ async fn test_handler_rejects_path_traversal_download() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -351,7 +351,7 @@ async fn test_handler_rejects_absolute_path_upload() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -390,7 +390,7 @@ async fn test_handler_shell_mode() {
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
         // This calls handle_client_connection which dispatches to handle_shell_mode
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -439,7 +439,7 @@ async fn test_handler_command_inline_data() {
 
     let server_task = tokio::spawn(async move {
         let layer = listener.accept().await.unwrap();
-        server::handle_client_connection(layer, psk).await
+        server::handle_client_connection(layer).await
     });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;

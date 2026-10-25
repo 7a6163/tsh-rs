@@ -209,7 +209,8 @@ async fn read_server_data(layer: &mut NoiseLayer) -> TshResult<Vec<u8>> {
 }
 
 async fn read_enhanced_user_input(terminal: &mut TerminalHandler) -> TshResult<Option<Vec<u8>>> {
-    if event::poll(tokio::time::Duration::from_millis(10))
+    // Poll with 100ms timeout — no extra sleep needed, tokio::select! handles concurrency
+    if event::poll(tokio::time::Duration::from_millis(100))
         .map_err(|e| TshError::Io(std::io::Error::other(e)))?
     {
         match event::read().map_err(|e| TshError::Io(std::io::Error::other(e)))? {
@@ -221,7 +222,6 @@ async fn read_enhanced_user_input(terminal: &mut TerminalHandler) -> TshResult<O
             _ => Ok(Some(vec![])),
         }
     } else {
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         Ok(Some(vec![]))
     }
 }

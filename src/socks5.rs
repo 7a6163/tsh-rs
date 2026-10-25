@@ -11,7 +11,7 @@ use crate::{
     constants::OperationMode,
     error::*,
     helpers::NoiseLayerExt,
-    noise::{NoiseLayer, NoiseListener},
+    noise::NoiseLayer,
 };
 
 // SOCKS5 constants
@@ -327,17 +327,3 @@ async fn relay_data_server(stream: &mut TcpStream, layer: &mut NoiseLayer) -> Ts
     Ok(())
 }
 
-// ============================================================
-// Standalone SOCKS5 client runner (for use from main)
-// ============================================================
-
-/// Run SOCKS5 proxy with a pre-existing NoiseListener (for connect-back mode)
-/// Not implemented yet — SOCKS5 currently only works in direct mode.
-pub async fn run_socks5_client_with_listener(
-    local_bind: &str,
-    _listener: &NoiseListener,
-) -> TshResult<()> {
-    Err(TshError::protocol(format!(
-        "SOCKS5 in connect-back mode is not yet supported (bind: {local_bind})"
-    )))
-}

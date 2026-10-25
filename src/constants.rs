@@ -1,6 +1,3 @@
-/// Buffer size for data operations
-pub const BUFSIZE: usize = 4096;
-
 /// Operation modes
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OperationMode {

